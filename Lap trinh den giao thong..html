@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arduino Traffic Light & AI Tutor Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c;
+            color: #e2e8f0;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .workspace {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Circuit Viewer Area */
+        .circuit-panel {
+            flex: 6;
+            background-color: #2d3748;
+            border-right: 1px solid #4a5568;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #circuit-svg {
+            width: 100%;
+            height: 100%;
+            min-width: 600px;
+            min-height: 400px;
+        }
+
+        /* Right Panel (Code + AI) */
+        .right-panel {
+            flex: 4;
+            display: flex;
+            flex-direction: column;
+            background-color: #1e293b;
+        }
+
+        /* Code Editor */
+        .code-section {
+            flex: 6;
+            display: flex;
+            flex-direction: column;
+            border-bottom: 2px solid #0f172a;
+        }
+
+        .section-header {
+            background-color: #0f172a;
+            padding: 10px 15px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+        }
+
+        textarea#code-editor {
+            flex: 1;
+            background-color: transparent;
+            color: #a78bfa;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            padding: 15px;
+            border: none;
+            resize: none;
+            outline: none;
+            white-space: pre;
+            overflow-wrap: normal;
+            overflow-x: auto;
+        }
+
+        /* Controls */
+        .controls {
+            padding: 10px 15px;
+            background-color: #0f172a;
+            border-top: 1px solid #334155;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border: none;
+        }
+
+        #run-btn { background-color: #10b981; color: white; }
+        #run-btn:hover { background-color: #059669; }
+        
+        #stop-btn { background-color: #ef4444; color: white; }
+        #stop-btn:hover { background-color: #dc2626; }
+        
+        /* AI Tutor Area */
+        .ai-section {
+            flex: 4;
+            display: flex;
+            flex-direction: column;
+            background-color: #1e293b;
+            min-height: 200px;
+        }
+
+        .ai-chat-box {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            font-size: 14px;
+        }
+
+        .chat-msg {
+            max-width: 85%;
+            padding: 8px 12px;
+            border-radius: 8px;
+            line-height: 1.4;
+        }
+        .chat-msg.ai {
+            background-color: #3b82f6;
+            color: white;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+        .chat-msg.user {
+            background-color: #475569;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+
+        .ai-input-area {
+            display: flex;
+            padding: 10px;
+            background-color: #0f172a;
+            border-top: 1px solid #334155;
+        }
+
+        .ai-input-area input {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #4a5568;
+            background-color: #1a202c;
+            color: white;
+            outline: none;
+        }
+
+        .ai-input-area button {
+            margin-left: 10px;
+            background-color: #3b82f6;
+            color: white;
+            padding: 8px 16px;
+        }
+        .ai-input-area button:hover { background-color: #2563eb; }
+
+        #mic-btn { background-color: #ef4444; margin-right: 8px; padding: 8px 12px; }
+        #mic-btn:hover { background-color: #dc2626; }
+        #mic-btn.recording { animation: pulse 1s infinite; background-color: #b91c1c; }
+        
+        #voice-toggle-btn { background-color: #64748b; margin-right: 8px; padding: 8px 12px; }
+        #voice-toggle-btn.active { background-color: #10b981; }
+        #voice-toggle-btn:hover { opacity: 0.9; }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 10;
+        }
+
+        .led-glow-red { filter: drop-shadow(0 0 10px #ff0000); }
+        .led-glow-yellow { filter: drop-shadow(0 0 10px #ffff00); }
+        .led-glow-green { filter: drop-shadow(0 0 10px #00ff00); }
+        
+        .code-keyword { color: #f472b6; }
+    </style>
+</head>
+<body>
+
+    <div class="workspace">
+        <!-- Circuit Panel -->
+        <div class="circuit-panel" id="circuit-container">
+            <div id="tooltip" class="tooltip">Component</div>
+            
+            <svg id="circuit-svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                        <rect width="20" height="20" fill="none" />
+                        <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#4a5568" stroke-width="0.5" stroke-dasharray="2,2"/>
+                    </pattern>
+                    <g id="resistor">
+                        <rect x="-15" y="-5" width="30" height="10" fill="#d4a373" rx="2" ry="2" stroke="#333" stroke-width="1"/>
+                        <line x1="-10" y1="-5" x2="-10" y2="5" stroke="#ff0000" stroke-width="2"/>
+                        <line x1="-5" y1="-5" x2="-5" y2="5" stroke="#ff0000" stroke-width="2"/>
+                        <line x1="0" y1="-5" x2="0" y2="5" stroke="#8b4513" stroke-width="2"/>
+                        <line x1="10" y1="-5" x2="10" y2="5" stroke="#ffd700" stroke-width="2"/>
+                        <line x1="-25" y1="0" x2="-15" y2="0" stroke="#a0aec0" stroke-width="2"/>
+                        <line x1="15" y1="0" x2="25" y2="0" stroke="#a0aec0" stroke-width="2"/>
+                    </g>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#grid)" />
+
+                <!-- Breadboard -->
+                <g id="breadboard" transform="translate(150, 300)">
+                    <rect x="0" y="0" width="500" height="150" fill="#f8f9fa" rx="10" ry="10" stroke="#ccc" stroke-width="2"/>
+                    <text x="250" y="75" font-family="Arial" font-size="24" fill="#cbd5e1" text-anchor="middle" opacity="0.5">BREADBOARD</text>
+                    <line x1="20" y1="20" x2="480" y2="20" stroke="#ef4444" stroke-width="3"/>
+                    <line x1="20" y1="35" x2="480" y2="35" stroke="#3b82f6" stroke-width="3"/>
+                    <line x1="20" y1="115" x2="480" y2="115" stroke="#3b82f6" stroke-width="3"/>
+                    <line x1="20" y1="130" x2="480" y2="130" stroke="#ef4444" stroke-width="3"/>
+
+                    <g fill="#333">
+                        <circle cx="100" cy="55" r="2"/><circle cx="100" cy="65" r="2"/><circle cx="100" cy="75" r="2"/><circle cx="100" cy="85" r="2"/><circle cx="100" cy="95" r="2"/>
+                        <circle cx="120" cy="55" r="2"/><circle cx="120" cy="65" r="2"/><circle cx="120" cy="75" r="2"/><circle cx="120" cy="85" r="2"/><circle cx="120" cy="95" r="2"/>
+                        
+                        <circle cx="180" cy="55" r="2"/><circle cx="180" cy="65" r="2"/><circle cx="180" cy="75" r="2"/><circle cx="180" cy="85" r="2"/><circle cx="180" cy="95" r="2"/>
+                        <circle cx="200" cy="55" r="2"/><circle cx="200" cy="65" r="2"/><circle cx="200" cy="75" r="2"/><circle cx="200" cy="85" r="2"/><circle cx="200" cy="95" r="2"/>
+
+                        <circle cx="260" cy="55" r="2"/><circle cx="260" cy="65" r="2"/><circle cx="260" cy="75" r="2"/><circle cx="260" cy="85" r="2"/><circle cx="260" cy="95" r="2"/>
+                        <circle cx="280" cy="55" r="2"/><circle cx="280" cy="65" r="2"/><circle cx="280" cy="75" r="2"/><circle cx="280" cy="85" r="2"/><circle cx="280" cy="95" r="2"/>
+                    </g>
+                </g>
+
+                <!-- Arduino UNO -->
+                <g id="arduino" transform="translate(150, 50)" data-info="Arduino UNO">
+                    <rect x="0" y="0" width="340" height="200" fill="#006468" rx="5" ry="5"/>
+                    <text x="170" y="100" font-family="Arial" font-size="28" font-weight="bold" fill="#fff" text-anchor="middle" opacity="0.3">UNO</text>
+                    <rect x="-10" y="20" width="20" height="40" fill="#c0c0c0" stroke="#888"/>
+                    <rect x="-10" y="140" width="20" height="30" fill="#333" stroke="#111"/>
+                    <rect x="250" y="50" width="40" height="100" fill="#222" rx="2" ry="2"/>
+                    
+                    <!-- Digital Headers (Pins 0 to 13) -->
+                    <rect x="30" y="5" width="290" height="15" fill="#111"/>
+                    
+                    <!-- Pin Labels & Points Generation -->
+                    <g fill="#fff" font-family="Arial" font-size="9" text-anchor="middle">
+                        <!-- GND -->
+                        <text x="45" y="30">GND</text>
+                        <circle id="pin-gnd" cx="45" cy="12" r="3" fill="#888" data-info="GND"/>
+                        
+                        <!-- Pins 13 down to 0 -->
+                        <!-- 13 -->
+                        <text x="65" y="30">13</text><circle id="ap-13" cx="65" cy="12" r="3" fill="#888" data-info="Pin 13"/>
+                        <!-- 12 -->
+                        <text x="83" y="30">12</text><circle id="ap-12" cx="83" cy="12" r="3" fill="#888" data-info="Pin 12"/>
+                        <!-- 11 -->
+                        <text x="101" y="30">11</text><circle id="ap-11" cx="101" cy="12" r="3" fill="#888" data-info="Pin 11"/>
+                        <!-- 10 -->
+                        <text x="119" y="30">10</text><circle id="ap-10" cx="119" cy="12" r="3" fill="#888" data-info="Pin 10"/>
+                        <!-- 9 -->
+                        <text x="137" y="30">9</text><circle id="ap-9" cx="137" cy="12" r="3" fill="#888" data-info="Pin 9"/>
+                        <!-- 8 -->
+                        <text x="155" y="30">8</text><circle id="ap-8" cx="155" cy="12" r="3" fill="#888" data-info="Pin 8"/>
+                        <!-- 7 -->
+                        <text x="173" y="30">7</text><circle id="ap-7" cx="173" cy="12" r="3" fill="#888" data-info="Pin 7"/>
+                        <!-- 6 -->
+                        <text x="191" y="30">6</text><circle id="ap-6" cx="191" cy="12" r="3" fill="#888" data-info="Pin 6"/>
+                        <!-- 5 -->
+                        <text x="209" y="30">5</text><circle id="ap-5" cx="209" cy="12" r="3" fill="#888" data-info="Pin 5"/>
+                        <!-- 4 -->
+                        <text x="227" y="30">4</text><circle id="ap-4" cx="227" cy="12" r="3" fill="#888" data-info="Pin 4"/>
+                        <!-- 3 -->
+                        <text x="245" y="30">3</text><circle id="ap-3" cx="245" cy="12" r="3" fill="#888" data-info="Pin 3"/>
+                        <!-- 2 -->
+                        <text x="263" y="30">2</text><circle id="ap-2" cx="263" cy="12" r="3" fill="#888" data-info="Pin 2"/>
+                        <!-- 1 -->
+                        <text x="281" y="30">1</text><circle id="ap-1" cx="281" cy="12" r="3" fill="#888" data-info="Pin 1"/>
+                        <!-- 0 -->
+                        <text x="299" y="30">0</text><circle id="ap-0" cx="299" cy="12" r="3" fill="#888" data-info="Pin 0"/>
+                    </g>
+                    
+                    <rect x="50" y="180" width="100" height="15" fill="#111"/>
+                    <text x="60" y="170" font-family="Arial" font-size="10" fill="#fff">5V</text>
+                    <text x="90" y="170" font-family="Arial" font-size="10" fill="#fff">GND</text>
+                    <circle cx="65" cy="187" r="3" fill="#888" data-info="5V Power"/>
+                    <circle cx="95" cy="187" r="3" fill="#888" data-info="GND"/>
+                </g>
+
+                <!-- Static Power Wires & Component GNDs -->
+                <path d="M 215 237 L 215 280 L 170 280 L 170 320" fill="none" stroke="#ef4444" stroke-width="4" />
+                <path d="M 245 237 L 245 290 L 180 290 L 180 335" fill="none" stroke="#111" stroke-width="4" />
+                <line x1="250" y1="335" x2="250" y2="355" stroke="#111" stroke-width="3" />
+                <line x1="330" y1="335" x2="330" y2="355" stroke="#111" stroke-width="3" />
+                <line x1="410" y1="335" x2="410" y2="355" stroke="#111" stroke-width="3" />
+
+                <!-- DYNAMIC WIRES GROUP -->
+                <g id="dynamic-wires"></g>
+
+                <!-- LEDs -->
+                <g transform="translate(260, 360)">
+                    <use href="#resistor" x="10" y="15" transform="rotate(90, 10, 15)"/>
+                    <g data-info="Đèn LED Đỏ">
+                        <line x1="-10" y1="-20" x2="-10" y2="0" stroke="#a0aec0" stroke-width="2"/>
+                        <line x1="-10" y1="0" x2="10" y2="35" stroke="#a0aec0" stroke-width="2"/>
+                        <line x1="0" y1="-20" x2="0" y2="-5" stroke="#a0aec0" stroke-width="2"/>
+                        <line x1="0" y1="-5" x2="-10" y2="-5" stroke="#a0aec0" stroke-width="2"/>
+                        <circle id="led-red" cx="-5" cy="-30" r="12" fill="#7f1d1d" stroke="#450a0a" stroke-width="2"/>
+                    </g>
+                </g>
+
+                <g transform="translate(340, 360)">
+                    <use href="#resistor" x="10" y="15" transform="rotate(90, 10, 15)"/>
+                    <g data-info="Đèn LED Vàng">
+                        <line x1="-10" y1="-20" x2="-10" y2="0" stroke="#a0aec0" stroke-width="2"/>
+                        <line x1="-10" y1="0" x2="10" y2="35" stroke="#a0aec0" stroke-width="2"/>
+                        <line x1="0" y1="-20" x2="0" y2="-5" stroke="#a0aec0" stroke-width="2"/>
+                        <line x1="0" y1="-5" x2="-10" y2="-5" stroke="#a0aec0" stroke-width="2"/>
+                        <circle id="led-yellow" cx="-5" cy="-30" r="12" fill="#713f12" stroke="#422006" stroke-width="2"/>
+                    </g>
+                </g>
+
+                <g transform="translate(420, 360)">
+                    <use href="#resistor" x="10" y="15" transform="rotate(90, 10, 15)"/>
+                    <g data-info="Đèn LED Xanh">
+                        <line x1="-10" y1="-20" x2="-10" y2="0" stroke="#a0aec0" stroke-width="2"/>
+                        <line x1="-10" y1="0" x2="10" y2="35" stroke="#a0aec0" stroke-width="2"/>
+                        <line x1="0" y1="-20" x2="0" y2="-5" stroke="#a0aec0" stroke-width="2"/>
+                        <line x1="0" y1="-5" x2="-10" y2="-5" stroke="#a0aec0" stroke-width="2"/>
+                        <circle id="led-green" cx="-5" cy="-30" r="12" fill="#14532d" stroke="#052e16" stroke-width="2"/>
+                    </g>
+                </g>
+            </svg>
+        </div>
+
+        <!-- Right Panel: Code + AI -->
+        <div class="right-panel">
+            
+            <!-- Code Editor -->
+            <div class="code-section">
+                <div class="section-header">
+                    <span>Lập trình Arduino (C++)</span>
+                    <span style="font-size: 0.8em; color: #94a3b8;">Chỉnh sửa code để thấy mạch thay đổi!</span>
+                </div>
+                
+                <textarea id="code-editor" spellcheck="false">
+int redPin = 13;
+int yellowPin = 12;
+int greenPin = 11;
+
+void setup() {
+  pinMode(redPin, OUTPUT);
+  pinMode(yellowPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+}
+
+void loop() {
+  digitalWrite(redPin, HIGH);
+  digitalWrite(yellowPin, LOW);
+  digitalWrite(greenPin, LOW);
+  delay(3000);
+
+  digitalWrite(redPin, LOW);
+  digitalWrite(yellowPin, LOW);
+  digitalWrite(greenPin, HIGH);
+  delay(3000);
+
+  digitalWrite(redPin, LOW);
+  digitalWrite(yellowPin, HIGH);
+  digitalWrite(greenPin, LOW);
+  delay(1000);
+}
+</textarea>
+
+                <div class="controls">
+                    <button id="run-btn">▶ Chạy Mô phỏng</button>
+                    <button id="stop-btn" disabled style="opacity: 0.5; cursor: not-allowed;">⏹ Dừng</button>
+                    <div id="status-message" style="margin-left: auto; font-size: 14px; color: #94a3b8;">Đang chờ...</div>
+                </div>
+            </div>
+
+            <!-- AI Tutor -->
+            <div class="ai-section">
+                <div class="section-header" style="background-color: #1e293b;">
+                    <span>🤖 Gia sư AI</span>
+                </div>
+                <div class="ai-chat-box" id="ai-chat-box">
+                    <div class="chat-msg ai">Dạ chào bạn! Mình là Gia sư AI. Bạn có thể dùng mic để ra lệnh "Đổi đèn đỏ sang chân 5" hoặc hỏi mình về code nhé. Có lỗi gì trên mạch mình sẽ báo ngay!</div>
+                </div>
+                <div class="ai-input-area">
+                    <button id="voice-toggle-btn" class="active" title="Bật/Tắt đọc câu trả lời">🔊</button>
+                    <button id="mic-btn" title="Nhấn để nói">🎤</button>
+                    <input type="text" id="ai-input" placeholder="Hỏi Gia sư AI (VD: giải thích hàm delay...)" />
+                    <button id="ai-send-btn">Gửi</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const runBtn = document.getElementById('run-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const codeEditor = document.getElementById('code-editor');
+        const statusMessage = document.getElementById('status-message');
+        const wireContainer = document.getElementById('dynamic-wires');
+        const aiChatBox = document.getElementById('ai-chat-box');
+        const aiInput = document.getElementById('ai-input');
+        const aiSendBtn = document.getElementById('ai-send-btn');
+        const micBtn = document.getElementById('mic-btn');
+        const voiceToggleBtn = document.getElementById('voice-toggle-btn');
+        
+        const ledRed = document.getElementById('led-red');
+        const ledYellow = document.getElementById('led-yellow');
+        const ledGreen = document.getElementById('led-green');
+
+        // Simulation State
+        let isRunning = false;
+        let simulationTimeoutIds = [];
+        let loopExecutionCount = 0;
+        const MAX_LOOPS = 100;
+        let currentPinMap = { redPin: 13, yellowPin: 12, greenPin: 11 };
+
+        // X-coordinates for pins 13 down to 0 relative to Arduino Group
+        const getPinX = (pinNum) => 65 + (13 - pinNum) * 18;
+
+        const colors = {
+            red: { off: '#7f1d1d', on: '#ff0000', glow: 'led-glow-red', wire: '#3b82f6' },
+            yellow: { off: '#713f12', on: '#ffff00', glow: 'led-glow-yellow', wire: '#a855f7' },
+            green: { off: '#14532d', on: '#00ff00', glow: 'led-glow-green', wire: '#ec4899' }
+        };
+
+        // UI & AI Logic
+        function addChatMessage(sender, text) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `chat-msg ${sender}`;
+            msgDiv.innerText = text;
+            aiChatBox.appendChild(msgDiv);
+            aiChatBox.scrollTop = aiChatBox.scrollHeight;
+        }
+
+        function analyzeCodeByAI(code) {
+            let pins = { redPin: null, yellowPin: null, greenPin: null };
+            let hasErrors = false;
+            
+            const regex = /(?:int|const int)\s+(redPin|yellowPin|greenPin)\s*=\s*(\d+)\s*;/g;
+            let match;
+            let usedPins = [];
+
+            while ((match = regex.exec(code)) !== null) {
+                let varName = match[1];
+                let pinValue = parseInt(match[2]);
+                pins[varName] = pinValue;
+                
+                if (pinValue < 0 || pinValue > 13) {
+                    let msg = `⚠️ Dạ, biến \`${varName}\` đang gán chân số ${pinValue}. Mạch của chúng ta chỉ có chân tín hiệu từ 0 đến 13 thôi ạ. Bạn sửa lại giúp mình nhé!`;
+                    addChatMessage('ai', msg);
+                    speakText(msg);
+                    hasErrors = true;
+                } else if (usedPins.includes(pinValue)) {
+                    let msg = `⚠️ Dạ cẩn thận, chân số ${pinValue} đang bị gán trùng cho nhiều đèn rồi. Mạch sẽ chạy loạn lên mất!`;
+                    addChatMessage('ai', msg);
+                    speakText(msg);
+                    hasErrors = true;
+                }
+                usedPins.push(pinValue);
+            }
+            
+            return { pins: pins, hasErrors: hasErrors };
+        }
+
+        // Live Drawing of wires
+        function updateWiring(pins) {
+            wireContainer.innerHTML = ''; 
+            
+            const drawWire = (pinNum, targetX, targetY, wireColor) => {
+                if (pinNum === null || pinNum < 0 || pinNum > 13) return;
+                
+                const startX = 150 + getPinX(pinNum);
+                const startY = 62; 
+                
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                const d = `M ${startX} ${startY} L ${startX} 20 L ${targetX} 20 L ${targetX} 260 L ${targetX} ${targetY}`;
+                
+                path.setAttribute("d", d);
+                path.setAttribute("fill", "none");
+                path.setAttribute("stroke", wireColor);
+                path.setAttribute("stroke-width", "3");
+                path.setAttribute("opacity", "0.8");
+                wireContainer.appendChild(path);
+            };
+
+            if(pins.redPin !== undefined) drawWire(pins.redPin, 270, 355, colors.red.wire);
+            if(pins.yellowPin !== undefined) drawWire(pins.yellowPin, 350, 355, colors.yellow.wire);
+            if(pins.greenPin !== undefined) drawWire(pins.greenPin, 430, 355, colors.green.wire);
+        }
+
+        codeEditor.addEventListener('input', () => {
+            const code = codeEditor.value;
+            const analysis = analyzeCodeByAI(code);
+            
+            let newPins = {
+                redPin: analysis.pins.redPin !== null ? analysis.pins.redPin : currentPinMap.redPin,
+                yellowPin: analysis.pins.yellowPin !== null ? analysis.pins.yellowPin : currentPinMap.yellowPin,
+                greenPin: analysis.pins.greenPin !== null ? analysis.pins.greenPin : currentPinMap.greenPin
+            };
+            
+            currentPinMap = newPins;
+            updateWiring(currentPinMap);
+        });
+
+        updateWiring(currentPinMap);
+
+        // Simulator Logic
+        function setLEDState(color, isOn) {
+            let ledElement = color === 'red' ? ledRed : (color === 'yellow' ? ledYellow : ledGreen);
+            let colorData = colors[color];
+
+            if (ledElement) {
+                if (isOn) {
+                    ledElement.setAttribute('fill', colorData.on);
+                    ledElement.classList.add(colorData.glow);
+                } else {
+                    ledElement.setAttribute('fill', colorData.off);
+                    ledElement.classList.remove(colorData.glow);
+                }
+            }
+        }
+
+        function resetLEDs() {
+            setLEDState('red', false);
+            setLEDState('yellow', false);
+            setLEDState('green', false);
+        }
+
+        function parseCodeForExecution(code) {
+            let commands = [];
+            const loopRegex = /void\s+loop\s*\(\s*\)\s*{([\s\S]*?)^}/m;
+            const loopMatch = code.match(loopRegex);
+            
+            if (!loopMatch) return { error: "Không tìm thấy hàm void loop()." };
+
+            const loopContent = loopMatch[1];
+            const commandRegex = /(?:digitalWrite\s*\(\s*([^,]+)\s*,\s*(HIGH|LOW)\s*\)|delay\s*\(\s*(\d+)\s*\))\s*;/g;
+            let match;
+            
+            while ((match = commandRegex.exec(loopContent)) !== null) {
+                if (match[3]) {
+                    commands.push({ type: 'delay', value: parseInt(match[3]) });
+                } else if (match[1] && match[2]) {
+                    let pinVar = match[1].trim();
+                    let state = match[2].trim() === 'HIGH';
+                    
+                    let logicalColor = null;
+                    if (pinVar === 'redPin') logicalColor = 'red';
+                    if (pinVar === 'yellowPin') logicalColor = 'yellow';
+                    if (pinVar === 'greenPin') logicalColor = 'green';
+                    
+                    if (logicalColor) commands.push({ type: 'write', color: logicalColor, state: state });
+                }
+            }
+
+            if (commands.length === 0) return { error: "Không có lệnh nào trong loop()." };
+            return { commands: commands };
+        }
+
+        async function executeCommands(commands) {
+            if (!isRunning) return;
+
+            for (let i = 0; i < commands.length; i++) {
+                if (!isRunning) break;
+                const cmd = commands[i];
+                
+                if (cmd.type === 'write') setLEDState(cmd.color, cmd.state);
+                else if (cmd.type === 'delay') {
+                    await new Promise(resolve => {
+                        let id = setTimeout(resolve, cmd.value);
+                        simulationTimeoutIds.push(id);
+                    });
+                }
+            }
+
+            if (isRunning) {
+                loopExecutionCount++;
+                if(loopExecutionCount < MAX_LOOPS) {
+                    await new Promise(res => simulationTimeoutIds.push(setTimeout(res, 10)));
+                    executeCommands(commands);
+                } else {
+                    stopSimulation("Quá tải vòng lặp an toàn.");
+                }
+            }
+        }
+
+        function stopSimulation(msg = "Đã dừng mô phỏng.") {
+            isRunning = false;
+            simulationTimeoutIds.forEach(clearTimeout);
+            simulationTimeoutIds = [];
+            resetLEDs();
+            
+            runBtn.disabled = false;
+            runBtn.style.opacity = '1';
+            runBtn.style.cursor = 'pointer';
+            
+            stopBtn.disabled = true;
+            stopBtn.style.opacity = '0.5';
+            stopBtn.style.cursor = 'not-allowed';
+            
+            statusMessage.innerText = msg;
+            statusMessage.style.color = '#94a3b8';
+        }
+
+        function startSimulation() {
+            const code = codeEditor.value;
+            const check = analyzeCodeByAI(code);
+            if (check.hasErrors) {
+                stopSimulation("Phát hiện lỗi, vui lòng xem khung chat Gia sư AI.");
+                return;
+            }
+
+            const parseResult = parseCodeForExecution(code);
+            if (parseResult.error) {
+                let msg = `Dạ mạch báo lỗi biên dịch: ${parseResult.error}`;
+                addChatMessage('ai', msg);
+                speakText(msg);
+                return;
+            }
+
+            isRunning = true;
+            loopExecutionCount = 0;
+            simulationTimeoutIds = [];
+            resetLEDs();
+
+            runBtn.disabled = true;
+            runBtn.style.opacity = '0.5';
+            runBtn.style.cursor = 'not-allowed';
+            
+            stopBtn.disabled = false;
+            stopBtn.style.opacity = '1';
+            stopBtn.style.cursor = 'pointer';
+            
+            statusMessage.innerText = "Mạch đang chạy...";
+            statusMessage.style.color = '#10b981';
+
+            executeCommands(parseResult.commands);
+        }
+
+        runBtn.addEventListener('click', startSimulation);
+        stopBtn.addEventListener('click', () => stopSimulation());
+
+        // --- Voice Features (STT & TTS) ---
+        let isVoiceEnabled = true;
+        
+        function speakText(text) {
+            if (!isVoiceEnabled || !window.speechSynthesis) return;
+            window.speechSynthesis.cancel(); 
+            
+            const cleanText = text.replace(/[`*]/g, '');
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = 'vi-VN';
+            utterance.rate = 1.0;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        voiceToggleBtn.addEventListener('click', () => {
+            isVoiceEnabled = !isVoiceEnabled;
+            voiceToggleBtn.classList.toggle('active', isVoiceEnabled);
+            voiceToggleBtn.innerText = isVoiceEnabled ? '🔊' : '🔇';
+            if (!isVoiceEnabled) window.speechSynthesis.cancel();
+        });
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'vi-VN';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onstart = () => {
+                micBtn.classList.add('recording');
+                aiInput.placeholder = "Gia sư đang nghe...";
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                aiInput.value = transcript;
+                handleAIChat();
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Lỗi nhận diện giọng nói: ", event.error);
+                micBtn.classList.remove('recording');
+                aiInput.placeholder = "Hỏi Gia sư AI...";
+            };
+
+            recognition.onend = () => {
+                micBtn.classList.remove('recording');
+                aiInput.placeholder = "Hỏi Gia sư AI...";
+            };
+
+            micBtn.addEventListener('click', () => {
+                recognition.start();
+            });
+        } else {
+            micBtn.style.display = 'none';
+        }
+
+        function tryParseCommand(text) {
+            const lowerText = text.toLowerCase();
+            const isChangeCommand = /(đổi|chuyển|thay|sửa|cài|đặt|lắp)/.test(lowerText);
+            if (!isChangeCommand) return null;
+
+            let color = null;
+            if (lowerText.includes('đỏ')) color = 'redPin';
+            else if (lowerText.includes('vàng')) color = 'yellowPin';
+            else if (lowerText.includes('xanh')) color = 'greenPin';
+
+            if (!color) return null;
+
+            let pinMatch = lowerText.match(/(?:thành|sang|vào|thành chân|sang chân|số|chân số)\s*(\d+)/);
+            let newPin = null;
+            
+            if (pinMatch) {
+                newPin = parseInt(pinMatch[1]);
+            } else {
+                let numbers = lowerText.match(/\d+/g);
+                if (numbers && numbers.length > 0) {
+                    newPin = parseInt(numbers[numbers.length - 1]);
+                }
+            }
+
+            if (newPin !== null && newPin >= 0 && newPin <= 13) {
+                return { color, newPin };
+            }
+            return null;
+        }
+
+        function tryParseDelayCommand(text) {
+            const lowerText = text.toLowerCase();
+            let delays = { red: null, yellow: null, green: null };
+            let found = false;
+
+            // Tìm mẫu câu: đỏ/vàng/xanh ... [số] giây/s
+            const regex = /(đỏ|vàng|xanh)[^\d]*(\d+)\s*(?:giây|s)/g;
+            let match;
+            while ((match = regex.exec(lowerText)) !== null) {
+                let colorStr = match[1];
+                let timeSec = parseInt(match[2]);
+                if (colorStr === 'đỏ') delays.red = timeSec;
+                if (colorStr === 'vàng') delays.yellow = timeSec;
+                if (colorStr === 'xanh') delays.green = timeSec;
+                found = true;
+            }
+            
+            return found ? delays : null;
+        }
+
+        function updateCodeDelay(delays) {
+            let code = codeEditor.value;
+            let updated = false;
+            
+            const updateColorDelay = (colorPrefix, timeSec) => {
+                let pinName = colorPrefix + 'Pin';
+                let ms = timeSec * 1000;
+                // Regex tìm hàm digitalWrite HIGH cho màu tương ứng, rồi thay đổi delay ngay sau nó
+                let blockRegex = new RegExp(`(digitalWrite\\s*\\(\\s*${pinName}\\s*,\\s*HIGH\\s*\\)[\\s\\S]*?delay\\s*\\(\\s*)\\d+(\\s*\\))`, 'g');
+                if (blockRegex.test(code)) {
+                    code = code.replace(blockRegex, `$1${ms}$2`);
+                    updated = true;
+                }
+            };
+
+            if (delays.red !== null) updateColorDelay('red', delays.red);
+            if (delays.yellow !== null) updateColorDelay('yellow', delays.yellow);
+            if (delays.green !== null) updateColorDelay('green', delays.green);
+
+            if (updated) {
+                codeEditor.value = code;
+                codeEditor.dispatchEvent(new Event('input'));
+            }
+            return updated;
+        }
+
+        function updateCodePin(pinName, newPinValue) {
+            let code = codeEditor.value;
+            let regex = new RegExp(`((?:int|const int)\\s+${pinName}\\s*=\\s*)\\d+`, 'g');
+            if (regex.test(code)) {
+                codeEditor.value = code.replace(regex, `$1${newPinValue}`);
+                codeEditor.dispatchEvent(new Event('input')); 
+                return true;
+            }
+            return false;
+        }
+
+        function handleAIChat() {
+            const text = aiInput.value.trim();
+            if (!text) return;
+            
+            addChatMessage('user', text);
+            aiInput.value = '';
+
+            setTimeout(() => {
+                const lower = text.toLowerCase();
+                let reply = "Dạ, xin lỗi bạn, mình chưa nắm rõ ý này. Bạn có thể ra lệnh đổi chân đèn bằng giọng nói, hoặc hỏi về các lệnh lập trình nhé.";
+                
+                let command = tryParseCommand(text);
+                let delayCommand = tryParseDelayCommand(text);
+
+                if (command) {
+                    let success = updateCodePin(command.color, command.newPin);
+                    if (success) {
+                        let colorVN = command.color === 'redPin' ? 'đỏ' : (command.color === 'yellowPin' ? 'vàng' : 'xanh');
+                        reply = `Dạ vâng! Mình đã đổi đèn màu ${colorVN} sang chân số ${command.newPin} trong mã nguồn. Bạn nhìn qua bảng mạch xem dây nối đã tự động chuyển theo chưa nhé!`;
+                    } else {
+                        reply = "Dạ, mình hiểu ý bạn nhưng không tìm thấy đoạn khai báo chân đèn đó trong đoạn mã. Bạn kiểm tra lại giúp mình nhé.";
+                    }
+                } else if (delayCommand) {
+                    let success = updateCodeDelay(delayCommand);
+                    if (success) {
+                        let parts = [];
+                        if (delayCommand.red !== null) parts.push(`đỏ ${delayCommand.red} giây`);
+                        if (delayCommand.yellow !== null) parts.push(`vàng ${delayCommand.yellow} giây`);
+                        if (delayCommand.green !== null) parts.push(`xanh ${delayCommand.green} giây`);
+                        
+                        reply = `Dạ vâng! Mình đã chỉnh lại thời gian chờ: đèn ${parts.join(', đèn ')} trong mã nguồn rồi ạ. Bạn nhấn nút "Chạy Mô phỏng" để xem thay đổi nhé!`;
+                    } else {
+                        reply = "Dạ, mình đã nghe lệnh đổi thời gian nhưng không tìm thấy đoạn lệnh delay cho các đèn này trong mã nguồn. Bạn kiểm tra lại giúp mình nhé.";
+                    }
+                } else if (lower.includes('hàm') || lower.includes('giải thích') || lower.includes('lệnh')) {
+                    if (lower.includes('digitalwrite')) reply = "Dạ, lệnh \`digitalWrite\` dùng để cấp điện hoặc ngắt điện ở chân tín hiệu. Mức \`HIGH\` là cấp điện 5 vôn để đèn sáng, còn \`LOW\` là ngắt điện 0 vôn làm đèn tắt ạ.";
+                    else if (lower.includes('delay')) reply = "Dạ, lệnh \`delay\` giúp mạch ngừng lại chờ đợi. Số bên trong ngoặc tính bằng mili-giây, ví dụ ghi 1000 tức là chờ 1 giây ạ.";
+                    else if (lower.includes('pinmode')) reply = "Dạ, lệnh \`pinMode\` dùng để thiết lập chân kết nối làm đầu ra để cấp điện cho đèn, hoặc đầu vào nếu dùng nút nhấn ạ.";
+                    else reply = "Dạ, đoạn mã này hoạt động giống hệt đèn giao thông thật: Bật đèn đỏ chờ 3 giây, chuyển sang xanh chờ 3 giây, rồi vàng 1 giây và cứ thế lặp lại liên tục ạ.";
+                } else if (lower.includes('lỗi') || lower.includes('sai')) {
+                    analyzeCodeByAI(codeEditor.value);
+                    reply = "Dạ, mình vừa kiểm tra lại mã nguồn. Nếu có lỗi sai về kết nối, thông báo cảnh báo sẽ hiển thị ngay trên khung trò chuyện này ạ.";
+                } else if (lower.includes('chào')) {
+                    reply = "Dạ chào bạn! Mình là trợ lý thông minh. Bạn hãy thử bấm nút Micro và nói 'Đổi đèn đỏ sang chân số 5' để trải nghiệm nhé!";
+                }
+                
+                addChatMessage('ai', reply);
+                speakText(reply); 
+            }, 500);
+        }
+
+        aiSendBtn.addEventListener('click', handleAIChat);
+        aiInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleAIChat();
+        });
+
+        const tooltip = document.getElementById('tooltip');
+        document.querySelectorAll('[data-info]').forEach(el => {
+            el.addEventListener('mouseenter', () => {
+                tooltip.textContent = el.getAttribute('data-info');
+                tooltip.style.opacity = '1';
+            });
+            el.addEventListener('mousemove', (e) => {
+                const rect = document.getElementById('circuit-container').getBoundingClientRect();
+                tooltip.style.left = (e.clientX - rect.left + 10) + 'px';
+                tooltip.style.top = (e.clientY - rect.top + 10) + 'px';
+            });
+            el.addEventListener('mouseleave', () => tooltip.style.opacity = '0');
+        });
+
+    </script>
+</body>
+</html>

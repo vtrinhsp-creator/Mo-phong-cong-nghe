@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng Mạch Khuếch Đại Đảo - AI & Osilo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #e5e7eb;
+            border-radius: 2px;
+        }
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+
+        /* Osilo Knob Styles */
+        .knob-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+        }
+        .knob {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #4b5563 0%, #1f2937 100%);
+            border: 2px solid #111827;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.2);
+            position: relative;
+            cursor: grab;
+            transform: rotate(-135deg); /* Init position */
+        }
+        .knob:active {
+            cursor: grabbing;
+        }
+        .knob-indicator {
+            position: absolute;
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 12px;
+            background-color: #fff;
+            border-radius: 2px;
+            box-shadow: 0 0 4px rgba(255,255,255,0.8);
+        }
+        .ai-glow {
+            animation: pulse-glow 2s infinite alternate;
+        }
+        @keyframes pulse-glow {
+            from { box-shadow: 0 0 5px #3b82f6; border-color: #93c5fd; }
+            to { box-shadow: 0 0 15px #3b82f6; border-color: #3b82f6; }
+        }
+        /* Bổ sung style cho Chat và Voice Mic */
+        .chat-bubble { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .mic-active { 
+            animation: pulse-red 1.2s infinite; 
+            color: #ef4444 !important; 
+            background: #fee2e2 !important; 
+        }
+        @keyframes pulse-red { 
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 
+            70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } 
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-gray-800 font-sans antialiased h-screen w-screen overflow-hidden flex flex-col items-center p-2 sm:p-4 box-border">
+
+    <div class="max-w-7xl w-full h-full flex flex-col gap-3">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-center bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-200 shrink-0">
+            <h1 class="text-lg sm:text-2xl font-extrabold text-slate-800 flex items-center gap-2">
+                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                Mô Phỏng Khuếch Đại Đảo
+            </h1>
+            <div class="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg shadow-inner">
+                <span class="text-sm font-bold text-gray-700 hidden sm:inline">Hệ số (Av):</span>
+                <span class="text-sm font-bold text-gray-700 sm:hidden">Av:</span>
+                <span class="text-lg font-black text-blue-700 font-mono" id="display-gain">-1.00</span>
+            </div>
+        </header>
+
+        <!-- Main Content (2 Columns on Desktop) -->
+        <main class="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full min-h-0">
+            
+            <!-- LEFT PANEL: Circuit, Resistances, & AI Tutor -->
+            <div class="lg:col-span-5 flex flex-col gap-3 min-h-0 overflow-y-auto pr-1">
+                
+                <!-- Circuit Diagram -->
+                <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-3 relative shrink-0">
+                    <div class="text-xs text-gray-500 font-bold uppercase mb-1">Sơ đồ mạch (IEC)</div>
+                    <svg viewBox="0 -20 300 130" class="w-full h-28 object-contain" xmlns="http://www.w3.org/2000/svg">
+                        <style>
+                            .wire { stroke: #374151; stroke-width: 2.5; fill: none; }
+                            .text { fill: #374151; font-family: sans-serif; font-size: 13px; }
+                            .node { fill: #374151; }
+                            .resistor { fill: #f9fafb; stroke: #374151; stroke-width: 2; }
+                            .dynamic-val { fill: #2563eb; font-weight: bold; font-size: 14px; }
+                        </style>
+                        
+                        <!-- Op-Amp Triangle -->
+                        <polygon points="120,30 120,90 180,60" style="fill:#fff;stroke:#3b82f6;stroke-width:2.5" />
+                        <text x="125" y="52" class="text" font-weight="bold">-</text>
+                        <text x="125" y="78" class="text" font-weight="bold">+</text>
+
+                        <!-- Input Vin -->
+                        <circle cx="20" cy="45" r="3.5" class="node" fill="#3b82f6"/>
+                        <text x="5" y="35" class="text" fill="#3b82f6" font-weight="bold">Vin</text>
+                        <path d="M 20 45 L 35 45" class="wire" stroke="#3b82f6" />
+                        
+                        <!-- Rin (Rectangular IEC) -->
+                        <path d="M 35 45 L 45 45" class="wire" />
+                        <rect x="45" y="37" width="26" height="16" class="resistor" />
+                        <text x="35" y="28" class="text">Rin=<tspan id="svg-rin" class="dynamic-val">10</tspan>k</text>
+                        <path d="M 71 45 L 120 45" class="wire" />
+                        
+                        <!-- Node before inverting input -->
+                        <circle cx="95" cy="45" r="3" class="node" />
+
+                        <!-- Ground (Non-inverting) -->
+                        <path d="M 120 75 L 95 75 L 95 95" class="wire" />
+                        <path d="M 85 95 L 105 95 M 90 100 L 100 100 M 93 105 L 97 105" class="wire" />
+
+                        <!-- Feedback Loop Rf (Rectangular IEC) -->
+                        <path d="M 95 45 L 95 15 L 115 15" class="wire" />
+                        <rect x="115" y="7" width="26" height="16" class="resistor" />
+                        <text x="115" y="-2" class="text">Rf=<tspan id="svg-rf" class="dynamic-val">10</tspan>k</text>
+                        <path d="M 141 15 L 195 15 L 195 60" class="wire" />
+                        
+                        <!-- Output Node -->
+                        <circle cx="195" cy="60" r="3" class="node" />
+
+                        <!-- Output Vout -->
+                        <path d="M 180 60 L 220 60" class="wire" stroke="#ef4444" />
+                        <circle cx="220" cy="60" r="3.5" class="node" fill="#ef4444" />
+                        <text x="210" y="45" class="text" fill="#ef4444" font-weight="bold">Vout</text>
+                    </svg>
+                </section>
+
+                <!-- Resistor Controls -->
+                <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 shrink-0">
+                    <div class="text-sm font-bold text-gray-800 mb-3">Điều chỉnh Điện trở</div>
+                    <div class="space-y-4">
+                        <!-- Input Resistance (Rin) -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center">
+                                <label for="slider-rin" class="text-sm font-semibold text-gray-700">R<sub>in</sub> (Điện trở vào)</label>
+                                <div class="flex items-center bg-gray-100 px-2 py-1 rounded border focus-within:border-blue-400">
+                                    <input type="number" id="val-rin" min="1" max="100" value="10" class="w-12 text-right bg-transparent font-bold outline-none text-gray-800" style="-moz-appearance: textfield;">
+                                    <span class="text-xs font-bold ml-1 text-gray-500">kΩ</span>
+                                </div>
+                            </div>
+                            <input type="range" id="slider-rin" min="1" max="100" value="10" step="1">
+                        </div>
+
+                        <!-- Feedback Resistance (Rf) -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center">
+                                <label for="slider-rf" class="text-sm font-semibold text-gray-700">R<sub>f</sub> (Hồi tiếp)</label>
+                                <div class="flex items-center bg-blue-50 text-blue-800 px-2 py-1 rounded border border-blue-200 focus-within:border-blue-500">
+                                    <input type="number" id="val-rf" min="1" max="100" value="10" class="w-12 text-right bg-transparent font-bold outline-none text-blue-800" style="-moz-appearance: textfield;">
+                                    <span class="text-xs font-bold ml-1">kΩ</span>
+                                </div>
+                            </div>
+                            <input type="range" id="slider-rf" min="1" max="100" value="10" step="1" class="accent-blue-600">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- NEW AI Tutor Panel with Chat -->
+                <section class="flex-grow bg-white rounded-xl border border-blue-200 flex flex-col shrink-0 min-h-[250px] shadow-sm overflow-hidden">
+                    <!-- Header -->
+                    <div class="bg-blue-600 px-3 py-2 flex justify-between items-center text-white shrink-0">
+                        <div class="flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-full bg-white text-blue-600 flex items-center justify-center font-bold text-xs shadow">AI</div>
+                            <h3 class="font-bold text-sm">Thầy giáo AI</h3>
+                        </div>
+                        <button id="btn-knowledge" class="text-[11px] bg-blue-500 hover:bg-blue-400 px-2 py-1 rounded shadow font-bold tracking-wide transition-colors">KIẾN THỨC & HD</button>
+                    </div>
+                    <!-- Circuit Status Live -->
+                    <div class="bg-blue-50 p-2 text-[12px] border-b border-blue-100 text-gray-700 leading-relaxed shrink-0" id="ai-status">
+                        Đang phân tích mạch...
+                    </div>
+                    <!-- Chat History -->
+                    <div class="flex-grow p-2 overflow-y-auto bg-slate-50 flex flex-col gap-2 text-[13px]" id="chat-history">
+                        <div class="bg-white p-2 rounded-lg shadow-sm border border-gray-200 self-start max-w-[90%] chat-bubble">
+                            <span class="font-bold text-blue-700 text-[11px] block mb-0.5 uppercase tracking-wider">Thầy giáo:</span>
+                            Chào em, thầy là AI hỗ trợ môn Điện tử. Thầy đã được nạp đầy đủ lý thuyết về Mạch Khuếch Đại Đảo. Em có câu hỏi nào hãy gõ hoặc dùng micro hỏi thầy nhé!
+                        </div>
+                    </div>
+                    <!-- Input Area -->
+                    <div class="p-2 bg-white border-t border-gray-200 flex gap-2 items-center shrink-0">
+                        <button id="btn-mic" class="p-2 text-gray-500 bg-gray-100 hover:bg-red-50 hover:text-red-600 rounded-full transition-all" title="Nhấn để nói (Voice)">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                        </button>
+                        <input type="text" id="chat-input" class="flex-grow bg-gray-100 border-none rounded-full px-4 py-2 text-[13px] focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Hỏi thầy giáo...">
+                        <button id="btn-send" class="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors opacity-50 cursor-not-allowed" disabled title="Gửi câu hỏi">
+                            <svg class="w-5 h-5 translate-x-[1px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                        </button>
+                    </div>
+                </section>
+            </div>
+
+            <!-- RIGHT PANEL: Oscilloscope Interface -->
+            <div class="lg:col-span-7 bg-[#2d3748] rounded-2xl shadow-xl border-4 border-[#1a202c] p-3 sm:p-5 flex flex-col justify-between relative overflow-hidden h-full min-h-[350px]">
+                <!-- Branding -->
+                <div class="absolute top-2 left-4 text-xs font-mono text-gray-400 opacity-70">
+                    OSCILLOSCOPE PRO - AI.2026
+                </div>
+
+                <!-- Screen Area -->
+                <div class="bg-[#111827] rounded-lg mt-4 p-2 border-2 border-[#4a5568] shadow-inner flex flex-col flex-grow relative min-h-[150px]">
+                    
+                    <div class="absolute top-3 right-3 flex gap-2 sm:gap-3 z-10 pointer-events-none">
+                        <div class="bg-black/80 px-1.5 py-1 sm:px-2 rounded text-[10px] sm:text-xs font-mono border border-gray-700">
+                            <span class="text-blue-400 font-bold">CH1(Vin):</span> <span id="os-vin-val">2.0V</span>
+                        </div>
+                        <div class="bg-black/80 px-1.5 py-1 sm:px-2 rounded text-[10px] sm:text-xs font-mono border border-gray-700">
+                            <span class="text-red-400 font-bold">CH2(Vout):</span> <span id="os-vout-val">2.0V</span>
+                        </div>
+                    </div>
+
+                    <div class="relative w-full h-full rounded overflow-hidden mt-1">
+                        <!-- Graticule (Lưới) -->
+                        <canvas id="gridCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                        <!-- Signal -->
+                        <canvas id="signalCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                    </div>
+                </div>
+
+                <!-- Control Panel (Knobs) -->
+                <div class="bg-[#374151] rounded-lg mt-4 p-3 border-t border-[#4b5563] grid grid-cols-3 gap-2 items-center">
+                    
+                    <!-- Frequency Knob -->
+                    <div class="knob-container" title="Kéo lên/xuống hoặc cuộn chuột">
+                        <div class="text-[10px] text-gray-300 font-bold uppercase mb-1 tracking-wider text-center">Tần số (Hz)</div>
+                        <div class="knob" id="knob-freq" data-min="1" data-max="100" data-val="50">
+                            <div class="knob-indicator"></div>
+                        </div>
+                        <div class="mt-2 bg-black/50 text-green-400 font-mono text-xs px-2 py-0.5 rounded text-center min-w-[50px]" id="knob-freq-val">50 Hz</div>
+                    </div>
+
+                    <!-- Amplitude Knob -->
+                    <div class="knob-container" title="Kéo lên/xuống hoặc cuộn chuột">
+                        <div class="text-[10px] text-gray-300 font-bold uppercase mb-1 tracking-wider text-center">Biên độ (V)</div>
+                        <div class="knob" id="knob-amp" data-min="0.1" data-max="15.0" data-val="2.0" data-step="0.1">
+                            <div class="knob-indicator"></div>
+                        </div>
+                        <div class="mt-2 bg-black/50 text-green-400 font-mono text-xs px-2 py-0.5 rounded text-center min-w-[50px]" id="knob-amp-val">2.0 V</div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex flex-col items-center justify-center gap-3 h-full">
+                        <button id="btn-pause" class="w-full max-w-[100px] py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded shadow-lg border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all">
+                            PAUSE
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modal Kiến Thức & Hướng Dẫn -->
+    <div id="knowledge-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity opacity-0">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden transform scale-95 transition-transform duration-300" id="modal-content">
+            <div class="bg-blue-600 p-4 flex justify-between items-center text-white shrink-0">
+                <h2 class="text-xl font-bold flex items-center gap-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                    Kiến thức & Hướng dẫn
+                </h2>
+                <button id="btn-close-modal" class="text-white hover:bg-blue-700 p-1 rounded-full transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+            </div>
+            <div class="p-5 overflow-y-auto flex-grow space-y-5 text-gray-800 text-sm sm:text-base">
+                <section>
+                    <h3 class="font-bold text-lg text-blue-700 border-b border-gray-200 pb-2 mb-2">📚 Tóm tắt Lý Thuyết</h3>
+                    <p class="mb-2"><strong>Mạch khuếch đại đảo (Inverting Amplifier)</strong> sử dụng Op-Amp là mạch có tín hiệu đầu ra (V<sub>out</sub>) ngược pha 180° so với tín hiệu đầu vào (V<sub>in</sub>).</p>
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200 font-mono text-center text-lg sm:text-xl font-bold my-3 text-blue-900 shadow-inner">
+                        V<sub>out</sub> = - (R<sub>f</sub> / R<sub>in</sub>) × V<sub>in</sub>
+                    </div>
+                    <ul class="list-disc pl-5 space-y-1.5">
+                        <li><strong>Hệ số khuếch đại (A<sub>v</sub>):</strong> A<sub>v</sub> = - R<sub>f</sub> / R<sub>in</sub>.</li>
+                        <li><strong>Dấu âm (-):</strong> Thể hiện sự đảo pha tín hiệu (đỉnh dương của ngõ vào sẽ thành đỉnh âm ở ngõ ra).</li>
+                        <li><strong>Hiện tượng Bão hòa (Saturation):</strong> Op-Amp không thể xuất điện áp vượt quá nguồn cấp của nó (trong bài này là ±15V). Nếu V<sub>out</sub> tính toán lớn hơn mức này, tín hiệu sẽ bị xén ngang đỉnh (Clipping).</li>
+                    </ul>
+                </section>
+                <section>
+                    <h3 class="font-bold text-lg text-blue-700 border-b border-gray-200 pb-2 mb-2">💡 Ứng dụng thực tế</h3>
+                    <ul class="list-disc pl-5 space-y-1.5">
+                        <li>Làm <strong>Bộ đệm đảo (Inverting Buffer)</strong> khi thiết lập R<sub>f</sub> = R<sub>in</sub> (Lúc này A<sub>v</sub> = -1).</li>
+                        <li>Khuếch đại tín hiệu cảm biến vi mô, bộ tiền khuếch đại âm thanh (Pre-amp).</li>
+                        <li>Là khối cơ sở trong <strong>Máy tính tương tự (Analog Computer)</strong> để thực hiện phép nhân hằng số âm, mạch cộng, mạch tích phân.</li>
+                    </ul>
+                </section>
+                <section>
+                    <h3 class="font-bold text-lg text-blue-700 border-b border-gray-200 pb-2 mb-2">🎮 Hướng dẫn Mô phỏng</h3>
+                    <ul class="list-disc pl-5 space-y-1.5">
+                        <li>Kéo thanh trượt <strong>R<sub>in</sub></strong> và <strong>R<sub>f</sub></strong> để thay đổi trực tiếp hệ số mạch.</li>
+                        <li>Đưa chuột vào nút vặn <strong>Biên độ (V)</strong> / <strong>Tần số (Hz)</strong> và <strong>LĂN CHUỘT</strong> để điều chỉnh nhạy bén.</li>
+                        <li>Nhấn biểu tượng <strong>Micro 🎙️</strong> hoặc gõ phím để đặt câu hỏi. Thầy giáo AI sẽ trả lời dựa trên thông số mạch bạn đang thiết lập.</li>
+                    </ul>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State ---
+        let params = {
+            rin: 10,     // kOhm
+            rf: 10,      // kOhm
+            amp: 2.0,    // Volts
+            freq: 50     // Hz
+        };
+        const MAX_VOLTAGE = 15; // Limit for Op-Amp +/- 15V
+        let isPaused = false;
+        let time = 0;
+        let animationId;
+
+        // --- Elements ---
+        const els = {
+            sliderRin: document.getElementById('slider-rin'),
+            sliderRf: document.getElementById('slider-rf'),
+            valRin: document.getElementById('val-rin'),
+            valRf: document.getElementById('val-rf'),
+            svgRin: document.getElementById('svg-rin'),
+            svgRf: document.getElementById('svg-rf'),
+            gain: document.getElementById('display-gain'),
+            
+            aiStatus: document.getElementById('ai-status'), // Renamed
+            
+            osVin: document.getElementById('os-vin-val'),
+            osVout: document.getElementById('os-vout-val'),
+            
+            knobAmp: document.getElementById('knob-amp'),
+            knobAmpVal: document.getElementById('knob-amp-val'),
+            knobFreq: document.getElementById('knob-freq'),
+            knobFreqVal: document.getElementById('knob-freq-val'),
+            
+            btnPause: document.getElementById('btn-pause'),
+            
+            gridCanvas: document.getElementById('gridCanvas'),
+            signalCanvas: document.getElementById('signalCanvas'),
+
+            // New Chat & Modal Elements
+            btnKnowledge: document.getElementById('btn-knowledge'),
+            modal: document.getElementById('knowledge-modal'),
+            modalContent: document.getElementById('modal-content'),
+            btnCloseModal: document.getElementById('btn-close-modal'),
+            
+            chatHistory: document.getElementById('chat-history'),
+            chatInput: document.getElementById('chat-input'),
+            btnSend: document.getElementById('btn-send'),
+            btnMic: document.getElementById('btn-mic'),
+        };
+
+        const gridCtx = els.gridCanvas.getContext('2d');
+        const signalCtx = els.signalCanvas.getContext('2d');
+
+        // --- Initialize ---
+        function init() {
+            setupResistorListeners();
+            setupKnobs();
+            setupPauseButton();
+            setupUIEvents(); // Init chat and modal
+            window.addEventListener('resize', resizeCanvases);
+            
+            updateStateFromUI(); // Sync initial values
+            resizeCanvases();
+            animate();
+        }
+
+        // --- Resistor Logic ---
+        function setupResistorListeners() {
+            // Sliders
+            els.sliderRin.addEventListener('input', (e) => { params.rin = parseFloat(e.target.value); updateUI(); });
+            els.sliderRf.addEventListener('input', (e) => { params.rf = parseFloat(e.target.value); updateUI(); });
+
+            // Number Inputs
+            els.valRin.addEventListener('change', (e) => validateInput(e, 'rin'));
+            els.valRf.addEventListener('change', (e) => validateInput(e, 'rf'));
+        }
+
+        function validateInput(e, key) {
+            let val = parseFloat(e.target.value);
+            if (isNaN(val) || val < 1) val = 1;
+            if (val > 100) val = 100;
+            params[key] = val;
+            updateUI();
+        }
+
+        // --- Knob Logic ---
+        function setupKnobs() {
+            setupSingleKnob(els.knobAmp, 'amp', els.knobAmpVal, 'V');
+            setupSingleKnob(els.knobFreq, 'freq', els.knobFreqVal, 'Hz');
+            
+            // Set initial rotations
+            updateKnobVisual(els.knobAmp, params.amp);
+            updateKnobVisual(els.knobFreq, params.freq);
+        }
+
+        function setupSingleKnob(knobEl, paramKey, displayEl, unit) {
+            let isDragging = false;
+            let startY = 0;
+            let startVal = 0;
+            
+            const min = parseFloat(knobEl.getAttribute('data-min'));
+            const max = parseFloat(knobEl.getAttribute('data-max'));
+            const step = parseFloat(knobEl.getAttribute('data-step')) || 1;
+
+            const handleStart = (y) => {
+                isDragging = true;
+                startY = y;
+                startVal = params[paramKey];
+                document.body.style.cursor = 'grabbing';
+            };
+
+            const handleMove = (y) => {
+                if (!isDragging) return;
+                
+                const deltaY = startY - y;
+                // Sensitivity factor: Giảm số chia từ 150 xuống 80 để vặn nhanh và nhạy hơn
+                const range = max - min;
+                let newVal = startVal + (deltaY * (range / 80)); 
+
+                if (newVal < min) newVal = min;
+                if (newVal > max) newVal = max;
+
+                // Snap to step
+                if (step < 1) {
+                    newVal = Math.round(newVal * 10) / 10;
+                } else {
+                    newVal = Math.round(newVal);
+                }
+
+                params[paramKey] = newVal;
+                
+                updateKnobVisual(knobEl, newVal);
+                displayEl.textContent = `${newVal}${step<1 && newVal % 1 === 0 ? '.0' : ''} ${unit}`;
+
+                updateUI();
+            };
+
+            const handleEnd = () => {
+                if(isDragging) {
+                    isDragging = false;
+                    document.body.style.cursor = 'default';
+                }
+            };
+
+            // Mouse Events
+            knobEl.addEventListener('mousedown', (e) => handleStart(e.clientY));
+            document.addEventListener('mousemove', (e) => handleMove(e.clientY));
+            document.addEventListener('mouseup', handleEnd);
+            
+            // Hỗ trợ cuộn chuột (Mouse Wheel) để vặn chính xác hơn
+            knobEl.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                let direction = e.deltaY < 0 ? 1 : -1;
+                // Vặn tần số nhanh hơn khi cuộn chuột
+                let stepMultiplier = (paramKey === 'freq') ? 2 : 1; 
+                let newVal = params[paramKey] + (direction * step * stepMultiplier);
+
+                if (newVal < min) newVal = min;
+                if (newVal > max) newVal = max;
+
+                if (step < 1) newVal = Math.round(newVal * 10) / 10;
+                else newVal = Math.round(newVal);
+
+                params[paramKey] = newVal;
+                updateKnobVisual(knobEl, newVal);
+                displayEl.textContent = `${newVal}${step<1 && newVal % 1 === 0 ? '.0' : ''} ${unit}`;
+                updateUI();
+            }, {passive: false});
+
+            // Touch Events (Mobile support)
+            knobEl.addEventListener('touchstart', (e) => handleStart(e.touches[0].clientY), {passive: true});
+            document.addEventListener('touchmove', (e) => {
+                if(isDragging) {
+                    e.preventDefault(); // Prevent scrolling while turning
+                    handleMove(e.touches[0].clientY);
+                }
+            }, {passive: false});
+            document.addEventListener('touchend', handleEnd);
+        }
+
+        function updateKnobVisual(knobEl, val) {
+            const min = parseFloat(knobEl.getAttribute('data-min'));
+            const max = parseFloat(knobEl.getAttribute('data-max'));
+            const percentage = (val - min) / (max - min);
+            const deg = -135 + (percentage * 270);
+            knobEl.style.transform = `rotate(${deg}deg)`;
+        }
+
+        function setupPauseButton() {
+            els.btnPause.addEventListener('click', () => {
+                isPaused = !isPaused;
+                if (isPaused) {
+                    els.btnPause.textContent = 'RUN';
+                    els.btnPause.className = "w-full max-w-[100px] py-2 bg-green-600 hover:bg-green-500 text-white text-xs font-bold rounded shadow-lg border-b-4 border-green-800 active:border-b-0 active:translate-y-1 transition-all";
+                } else {
+                    els.btnPause.textContent = 'PAUSE';
+                    els.btnPause.className = "w-full max-w-[100px] py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded shadow-lg border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all";
+                }
+            });
+        }
+
+        // --- Core Updates & AI Tutor ---
+        function updateStateFromUI() {
+            updateUI();
+        }
+
+        function updateUI() {
+            // Update simple DOM elements
+            if (document.activeElement !== els.valRin) els.valRin.value = params.rin;
+            if (document.activeElement !== els.valRf) els.valRf.value = params.rf;
+            if (document.activeElement !== els.sliderRin) els.sliderRin.value = params.rin;
+            if (document.activeElement !== els.sliderRf) els.sliderRf.value = params.rf;
+
+            els.svgRin.textContent = params.rin;
+            els.svgRf.textContent = params.rf;
+
+            // Math
+            const gain = -(params.rf / params.rin);
+            els.gain.textContent = gain.toFixed(2);
+
+            if (Math.abs(gain) > 1) els.gain.className = "text-lg font-black text-red-600 font-mono";
+            else els.gain.className = "text-lg font-black text-blue-700 font-mono";
+
+            updateAITutorStatus(gain);
+        }
+
+        function updateAITutorStatus(gain) {
+            let maxVout = Math.abs(gain * params.amp);
+            let message = "";
+
+            message += `<strong>A<sub>v</sub>:</strong> <b>${gain.toFixed(2)}</b>. `;
+            
+            if (Math.abs(gain) == 1) {
+                message += `Hoạt động như bộ đệm đảo (Av = -1). `;
+            } else if (Math.abs(gain) < 1) {
+                message += `Đang <b>suy giảm</b>. `;
+            } else {
+                message += `Đang <b>khuếch đại</b>. `;
+            }
+
+            if (maxVout >= MAX_VOLTAGE) {
+                message += `<span class="text-red-600 font-bold ml-1">⚠️ Xén đỉnh (Bão hòa) > ${MAX_VOLTAGE}V</span>`;
+            } else {
+                message += `<span class="text-green-600 font-bold ml-1">✓ Tuyến tính</span>`;
+            }
+
+            els.aiStatus.innerHTML = message;
+        }
+
+        // --- Chat & Teacher AI Logic ---
+        const systemPrompt = `Bạn là một thầy giáo dạy môn Điện tử căn bản tại Việt Nam. Giọng điệu của thầy phải chuẩn mực, sư phạm, mô phạm, nghiêm túc nhưng ân cần, luôn xưng "thầy" và gọi học sinh là "em" hoặc "các em".
+Nhiệm vụ: Giải đáp thắc mắc về mạch khuếch đại đảo (Inverting Amplifier) dùng Op-Amp.
+Kiến thức nạp sẵn:
+- Công thức: Vout = - (Rf / Rin) * Vin. Hệ số Av = -Rf / Rin. Dấu trừ chỉ sự đảo pha 180 độ.
+- Bão hòa: Điện áp Vout không được vượt quá nguồn cấp Op-Amp (trong bài là ±15V). Nếu tính toán vượt mức này, tín hiệu bị xén đỉnh (clipping).
+- Ứng dụng: Khuếch đại tín hiệu analog, làm đệm đảo pha, dùng trong máy tính tương tự (cộng, trừ).
+Quy tắc:
+- Trả lời học sinh mạch lạc, sư phạm, độ dài vừa phải (1-2 đoạn ngắn).
+- KHÔNG dùng định dạng markdown quá phức tạp, có thể dùng in đậm để nhấn mạnh.
+- Nếu học sinh hỏi ngoài lề (không phải điện tử), khéo léo nhắc nhở quay lại bài học.`;
+
+        let chatContext = [
+            { role: "user", parts: [{ text: "Tôi là học sinh. Hãy bắt đầu vai trò thầy giáo điện tử của bạn." }] },
+            { role: "model", parts: [{ text: "Chào em, thầy là AI hỗ trợ môn Điện tử. Thầy đã được nạp đầy đủ lý thuyết về Mạch Khuếch Đại Đảo. Em có câu hỏi nào hãy gõ hoặc dùng micro hỏi thầy nhé!" }] }
+        ];
+
+        function addChatMessage(sender, text) {
+            const div = document.createElement('div');
+            const isUser = sender === 'user';
+            div.className = `p-2.5 rounded-lg shadow-sm border max-w-[90%] chat-bubble text-[13px] ${isUser ? 'bg-blue-100 border-blue-200 self-end' : 'bg-white border-gray-200 self-start'}`;
+            
+            const name = isUser ? 'Học sinh' : 'Thầy giáo';
+            const nameColor = isUser ? 'text-blue-800' : 'text-blue-700';
+            
+            // Format line breaks
+            const formattedText = text.replace(/\n/g, '<br>');
+            
+            div.innerHTML = `<span class="font-bold ${nameColor} text-[11px] block mb-1 uppercase tracking-wider">${name}:</span><span>${formattedText}</span>`;
+            els.chatHistory.appendChild(div);
+            els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+        }
+
+        async function sendToTeacherAI(message) {
+            addChatMessage('user', message);
+            chatContext.push({ role: "user", parts: [{ text: message }] });
+            
+            // Show typing indicator
+            const typingDiv = document.createElement('div');
+            typingDiv.className = `p-2.5 rounded-lg shadow-sm border border-gray-200 bg-white self-start max-w-[90%] chat-bubble text-[13px] text-gray-500 italic flex items-center gap-2`;
+            typingDiv.id = 'typing-indicator';
+            typingDiv.innerHTML = `<span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span><span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></span><span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></span> Thầy đang trả lời...`;
+            els.chatHistory.appendChild(typingDiv);
+            els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+
+            try {
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                
+                // Inject current simulation variables dynamically into the user's prompt (hidden from UI)
+                const currentGain = -(params.rf / params.rin);
+                const currentVout = Math.abs(currentGain * params.amp);
+                const circuitState = `[THÔNG TIN HỆ THỐNG GỬI KÈM: Trạng thái mạch hiện tại: Rin=${params.rin}k, Rf=${params.rf}k, Vin=${params.amp}V, Av=${currentGain.toFixed(2)}, Vout dự kiến=${currentVout.toFixed(2)}V. Nếu em hỏi về mạch hiện tại, thầy hãy dựa vào thông số này để giải đáp]. `;
+                
+                let payloadContext = JSON.parse(JSON.stringify(chatContext)); // Deep copy
+                payloadContext[payloadContext.length - 1].parts[0].text = circuitState + "Câu hỏi: " + message;
+
+                const payload = {
+                    contents: payloadContext,
+                    systemInstruction: { parts: [{ text: systemPrompt }] }
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                document.getElementById('typing-indicator')?.remove();
+
+                if (result.candidates && result.candidates[0].content) {
+                    const aiText = result.candidates[0].content.parts[0].text;
+                    addChatMessage('model', aiText);
+                    chatContext.push({ role: "model", parts: [{ text: aiText }] });
+                } else {
+                    addChatMessage('model', 'Xin lỗi em, đường truyền của thầy đang chập chờn. Em hỏi lại sau nhé!');
+                }
+            } catch (e) {
+                document.getElementById('typing-indicator')?.remove();
+                addChatMessage('model', 'Hệ thống kết nối lỗi. Em hãy kiểm tra lại mạng nhé.');
+                chatContext.pop(); // Remove un-answered user message
+            }
+        }
+
+        function setupUIEvents() {
+            // Chat Input Logic
+            const handleSend = () => {
+                const text = els.chatInput.value.trim();
+                if(text) {
+                    els.chatInput.value = '';
+                    els.btnSend.disabled = true;
+                    els.btnSend.classList.add('opacity-50', 'cursor-not-allowed');
+                    sendToTeacherAI(text);
+                }
+            };
+
+            els.btnSend.addEventListener('click', handleSend);
+            els.chatInput.addEventListener('keypress', (e) => {
+                if(e.key === 'Enter') handleSend();
+            });
+            els.chatInput.addEventListener('input', () => {
+                const hasText = els.chatInput.value.trim().length > 0;
+                els.btnSend.disabled = !hasText;
+                if(hasText) els.btnSend.classList.remove('opacity-50', 'cursor-not-allowed');
+                else els.btnSend.classList.add('opacity-50', 'cursor-not-allowed');
+            });
+
+            // Speech Recognition (Mic) Logic
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'vi-VN';
+                recognition.interimResults = false;
+                
+                recognition.onstart = () => {
+                    els.btnMic.classList.add('mic-active');
+                    els.chatInput.placeholder = 'Thầy đang nghe...';
+                };
+                
+                recognition.onresult = (e) => {
+                    const transcript = e.results[0][0].transcript;
+                    els.chatInput.value = transcript;
+                    els.btnSend.disabled = false;
+                    els.btnSend.classList.remove('opacity-50', 'cursor-not-allowed');
+                };
+                
+                recognition.onend = () => {
+                    els.btnMic.classList.remove('mic-active');
+                    els.chatInput.placeholder = 'Hỏi thầy giáo...';
+                    // Auto send if voice captured
+                    if (els.chatInput.value.trim().length > 0) handleSend();
+                };
+
+                recognition.onerror = (e) => {
+                    console.error("Speech error", e);
+                    els.chatInput.placeholder = 'Lỗi thu âm, thử lại nhé.';
+                    setTimeout(() => els.chatInput.placeholder = 'Hỏi thầy giáo...', 2000);
+                };
+
+                els.btnMic.addEventListener('click', () => {
+                    if (els.btnMic.classList.contains('mic-active')) recognition.stop();
+                    else recognition.start();
+                });
+            } else {
+                els.btnMic.title = 'Trình duyệt không hỗ trợ thu âm';
+                els.btnMic.style.opacity = '0.5';
+            }
+
+            // Modal Logic
+            const openModal = () => {
+                els.modal.classList.remove('hidden');
+                setTimeout(() => {
+                    els.modal.classList.remove('opacity-0');
+                    els.modalContent.classList.remove('scale-95');
+                }, 10);
+            };
+            const closeModal = () => {
+                els.modal.classList.add('opacity-0');
+                els.modalContent.classList.add('scale-95');
+                setTimeout(() => els.modal.classList.add('hidden'), 300);
+            };
+
+            els.btnKnowledge.addEventListener('click', openModal);
+            els.btnCloseModal.addEventListener('click', closeModal);
+            els.modal.addEventListener('click', (e) => {
+                if(e.target === els.modal) closeModal();
+            });
+        }
+
+        // --- Canvas Rendering ---
+        function resizeCanvases() {
+            const container = els.gridCanvas.parentElement;
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            const dpr = window.devicePixelRatio || 1;
+            
+            [els.gridCanvas, els.signalCanvas].forEach(c => {
+                c.width = w * dpr;
+                c.height = h * dpr;
+                c.style.width = `${w}px`;
+                c.style.height = `${h}px`;
+                c.getContext('2d').scale(dpr, dpr);
+            });
+
+            drawOscilloscopeGrid(w, h);
+        }
+
+        function drawOscilloscopeGrid(w, h) {
+            gridCtx.clearRect(0, 0, w, h);
+            
+            const vDivs = 8; 
+            const hDivs = 10; 
+            const cellW = w / hDivs;
+            const cellH = h / vDivs;
+            const centerY = h / 2;
+
+            gridCtx.beginPath();
+            gridCtx.strokeStyle = 'rgba(74, 222, 128, 0.15)'; // Faint green for grid
+            gridCtx.lineWidth = 1;
+
+            // Minor grid lines
+            for (let i = 0; i <= hDivs; i++) {
+                gridCtx.moveTo(i * cellW, 0); gridCtx.lineTo(i * cellW, h);
+            }
+            for (let i = 0; i <= vDivs; i++) {
+                gridCtx.moveTo(0, i * cellH); gridCtx.lineTo(w, i * cellH);
+            }
+            gridCtx.stroke();
+
+            // Center Crosshair
+            gridCtx.beginPath();
+            gridCtx.strokeStyle = 'rgba(74, 222, 128, 0.4)';
+            gridCtx.lineWidth = 1.5;
+            gridCtx.moveTo(0, centerY); gridCtx.lineTo(w, centerY);
+            gridCtx.moveTo(w/2, 0); gridCtx.lineTo(w/2, h);
+            gridCtx.stroke();
+            
+            // Tick marks on center axes
+            gridCtx.beginPath();
+            for(let i=0; i<w; i+=cellW/5) { gridCtx.moveTo(i, centerY-3); gridCtx.lineTo(i, centerY+3); }
+            for(let i=0; i<h; i+=cellH/5) { gridCtx.moveTo(w/2-3, i); gridCtx.lineTo(w/2+3, i); }
+            gridCtx.stroke();
+        }
+
+        function drawSignals() {
+            const w = els.signalCanvas.clientWidth;
+            const h = els.signalCanvas.clientHeight;
+            const centerY = h / 2;
+            
+            // Limit Y scale slightly so 15V fits exactly within the top/bottom boundary
+            const scaleY = (h / 2) / MAX_VOLTAGE * 0.95; 
+            
+            signalCtx.clearRect(0, 0, w, h);
+
+            const gain = -(params.rf / params.rin);
+            const speedFactor = params.freq * 0.001; 
+            
+            const pathIn = new Path2D();
+            const pathOut = new Path2D();
+
+            let displayVin = 0;
+            let displayVout = 0;
+
+            signalCtx.lineJoin = 'round';
+
+            // Draw wave history
+            for (let x = 0; x <= w; x++) {
+                const t = time - (w - x) * 0.05; 
+                
+                const vin = params.amp * Math.sin(t);
+                let vout = gain * vin;
+                
+                // Saturation
+                if (vout > MAX_VOLTAGE) vout = MAX_VOLTAGE;
+                if (vout < -MAX_VOLTAGE) vout = -MAX_VOLTAGE;
+
+                if (x === w) {
+                    displayVin = Math.abs(vin); 
+                    displayVout = Math.abs(vout);
+                }
+
+                const yIn = centerY - (vin * scaleY);
+                const yOut = centerY - (vout * scaleY);
+
+                if (x === 0) {
+                    pathIn.moveTo(x, yIn);
+                    pathOut.moveTo(x, yOut);
+                } else {
+                    pathIn.lineTo(x, yIn);
+                    pathOut.lineTo(x, yOut);
+                }
+            }
+
+            // Glow effect
+            signalCtx.shadowBlur = 4;
+            
+            // Draw V_in (Blue/Cyan for Channel 1)
+            signalCtx.shadowColor = '#60a5fa';
+            signalCtx.strokeStyle = '#60a5fa'; 
+            signalCtx.lineWidth = 2;
+            signalCtx.stroke(pathIn);
+
+            // Draw V_out (Red/Orange for Channel 2)
+            signalCtx.shadowColor = '#f87171';
+            signalCtx.strokeStyle = '#f87171'; 
+            signalCtx.lineWidth = 2.5;
+            signalCtx.stroke(pathOut);
+            
+            // Reset shadow for static lines
+            signalCtx.shadowBlur = 0;
+
+            // Draw saturation limit lines
+            signalCtx.beginPath();
+            signalCtx.setLineDash([4, 4]);
+            signalCtx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+            signalCtx.lineWidth = 1;
+            signalCtx.moveTo(0, centerY - (MAX_VOLTAGE * scaleY));
+            signalCtx.lineTo(w, centerY - (MAX_VOLTAGE * scaleY));
+            signalCtx.moveTo(0, centerY - (-MAX_VOLTAGE * scaleY));
+            signalCtx.lineTo(w, centerY - (-MAX_VOLTAGE * scaleY));
+            signalCtx.stroke();
+            signalCtx.setLineDash([]);
+
+            // Update top right text display dynamically
+            els.osVin.textContent = `${displayVin.toFixed(1)}V`;
+            els.osVout.textContent = `${displayVout.toFixed(1)}V`;
+
+            if (!isPaused) {
+                time += speedFactor;
+            }
+        }
+
+        function animate() {
+            drawSignals();
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // Run
+        window.onload = init;
+    </script>
+</body>
+</html>

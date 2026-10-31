@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng Mạch So Sánh - Cảnh Báo Nhiệt Độ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -7px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 5px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 2.5px;
+        }
+        
+        .accent-amber-500::-webkit-slider-thumb { background: #f59e0b; }
+        .accent-purple-500::-webkit-slider-thumb { background: #a855f7; }
+
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+
+        /* Osilo Knob Styles */
+        .knob-container { display: flex; flex-direction: column; align-items: center; user-select: none; }
+        .knob {
+            width: 50px; height: 50px; border-radius: 50%;
+            background: radial-gradient(circle, #4b5563 0%, #1f2937 100%);
+            border: 2px solid #111827;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.2);
+            position: relative; cursor: grab; transform: rotate(-135deg);
+        }
+        .knob:active { cursor: grabbing; }
+        .knob-indicator {
+            position: absolute; top: 5px; left: 50%; transform: translateX(-50%);
+            width: 4px; height: 12px; background-color: #fff; border-radius: 2px;
+            box-shadow: 0 0 4px rgba(255,255,255,0.8);
+        }
+        
+        .chat-bubble { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .mic-active { 
+            animation: pulse-red 1.2s infinite; 
+            color: #ef4444 !important; background: #fee2e2 !important; 
+        }
+        @keyframes pulse-red { 
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 
+            70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } 
+        }
+
+        /* Toggle Switch */
+        .toggle-checkbox:checked { right: 0; border-color: #3b82f6; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #3b82f6; }
+        .toggle-checkbox:checked + .toggle-label:before { transform: translateX(100%); }
+
+        .led-glow-red { filter: drop-shadow(0 0 10px #ef4444); }
+        .led-glow-blue { filter: drop-shadow(0 0 10px #3b82f6); }
+        
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .fan-spin { animation: spin 0.15s linear infinite; transform-origin: 0px 0px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-gray-800 font-sans antialiased h-screen w-screen overflow-hidden flex flex-col items-center p-2 sm:p-4 box-border">
+
+    <div class="max-w-7xl w-full h-full flex flex-col gap-3">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-center bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-200 shrink-0">
+            <h1 class="text-lg sm:text-2xl font-extrabold text-slate-800 flex items-center gap-2">
+                <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+                Mạch So Sánh - Cảnh Báo Nhiệt Độ
+            </h1>
+            
+            <!-- Type Toggle -->
+            <div class="flex items-center gap-3 bg-gray-100 p-1.5 rounded-lg border border-gray-200 shadow-inner">
+                <span class="text-sm font-bold text-gray-400" id="label-dao">ĐẢO</span>
+                <div class="relative inline-block w-12 h-6 align-middle select-none transition duration-200 ease-in">
+                    <input type="checkbox" name="toggle" id="type-toggle" checked class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer z-10 top-0 left-0 transition-transform duration-300"/>
+                    <label for="type-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer transition-colors duration-300"></label>
+                </div>
+                <span class="text-sm font-bold text-blue-600" id="label-khongdao">KHÔNG ĐẢO</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full min-h-0">
+            
+            <!-- LEFT PANEL: Circuit & AI -->
+            <div class="lg:col-span-5 flex flex-col gap-3 min-h-0 overflow-y-auto pr-1">
+                
+                <!-- Circuit Diagram -->
+                <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-3 relative shrink-0">
+                    <div class="text-xs text-gray-500 font-bold uppercase mb-1" id="circuit-title">Sơ đồ mạch (Cảnh báo nóng - Không Đảo)</div>
+                    
+                    <svg id="svg-circuit" viewBox="0 0 350 160" class="w-full h-36 object-contain" xmlns="http://www.w3.org/2000/svg">
+                        <style>
+                            .wire { stroke: #374151; stroke-width: 2.5; fill: none; }
+                            .text { fill: #374151; font-family: sans-serif; font-size: 13px; font-weight: bold; }
+                            .node { fill: #374151; }
+                            .resistor { fill: #f9fafb; stroke: #374151; stroke-width: 2; }
+                            .power { stroke: #ef4444; stroke-width: 2; }
+                            .ground { stroke: #10b981; stroke-width: 2; }
+                        </style>
+                        
+                        <!-- Op-Amp Triangle -->
+                        <polygon points="120,50 120,110 180,80" style="fill:#e0f2fe;stroke:#0284c7;stroke-width:2.5" />
+                        <text x="125" y="72" class="text">-</text>
+                        <text x="125" y="98" class="text">+</text>
+
+                        <!-- Power Supplies (+Ucc, -Ucc) -->
+                        <path d="M 150 65 L 150 25" class="wire power" />
+                        <circle cx="150" cy="25" r="3" fill="#ef4444" />
+                        <text x="135" y="18" fill="#ef4444" class="text">+Ucc (15V)</text>
+
+                        <path d="M 150 95 L 150 135" class="wire power" stroke="#3b82f6" />
+                        <circle cx="150" cy="135" r="3" fill="#3b82f6" />
+                        <text x="135" y="152" fill="#3b82f6" class="text">-Ucc (-15V)</text>
+
+                        <!-- Inputs (Will be swapped by JS) -->
+                        <g id="input-top">
+                            <!-- Placeholder -->
+                        </g>
+                        <g id="input-bottom">
+                            <!-- Placeholder -->
+                        </g>
+
+                        <!-- Output Ura -->
+                        <path d="M 180 80 L 220 80" class="wire" />
+                        <circle cx="220" cy="80" r="3.5" class="node" />
+                        <text x="210" y="65" class="text text-red-600">U<tspan baseline-shift="sub" font-size="10">ra</tspan></text>
+                        
+                        <!-- Output Diode, Relay, Fan branches -->
+                        <path d="M 220 80 L 235 80" class="wire" />
+                        
+                        <!-- Diode -->
+                        <g transform="translate(235, 80)">
+                            <polygon points="0,-8 0,8 15,0" fill="#374151"/>
+                            <line x1="15" y1="-10" x2="15" y2="10" stroke="#374151" stroke-width="2.5"/>
+                            <path d="M 15 0 L 25 0" class="wire" />
+                            <text x="3" y="-12" class="text text-gray-500" font-size="10">D</text>
+                        </g>
+
+                        <!-- Relay Coil -->
+                        <g transform="translate(260, 80)">
+                            <rect x="0" y="-12" width="24" height="24" class="resistor" fill="#f3f4f6"/>
+                            <line x1="0" y1="-12" x2="24" y2="12" stroke="#9ca3af" stroke-width="1"/>
+                            <text x="-2" y="-16" class="text text-gray-500" font-size="10">Rơ-le</text>
+                            <path d="M 24 0 L 35 0" class="wire" />
+                        </g>
+
+                        <!-- Ground for Relay Coil -->
+                        <g transform="translate(295, 80)">
+                            <path d="M 0 0 L 0 15" class="wire" />
+                            <path d="M -10 15 L 10 15 M -6 20 L 6 20 M -2 25 L 2 25" class="wire" />
+                        </g>
+
+                        <!-- Relay Switch & Fan Circuit (Isolated 12V loop) -->
+                        <g transform="translate(260, 25)">
+                            <!-- Power for Fan -->
+                            <circle cx="10" cy="-5" r="3.5" fill="#ef4444" />
+                            <text x="0" y="-12" fill="#ef4444" class="text" font-size="10">+12V</text>
+                            <path d="M 10 -5 L 10 15" class="wire" />
+                            
+                            <!-- Switch -->
+                            <circle cx="10" cy="15" r="2.5" class="node"/>
+                            <circle cx="28" cy="15" r="2.5" class="node"/>
+                            <line x1="10" y1="15" x2="28" y2="15" stroke="#374151" stroke-width="2.5" id="relay-switch" style="transition: transform 0.2s ease; transform-origin: 10px 15px; transform: rotate(-30deg);"/>
+                            <path d="M 28 15 L 45 15" class="wire" />
+                            
+                            <!-- Fan (Motor) -->
+                            <circle cx="65" cy="15" r="16" fill="#e5e7eb" stroke="#374151" stroke-width="2"/>
+                            <text x="60" y="20" font-weight="bold" font-family="sans-serif" font-size="14" fill="#374151">M</text>
+                            
+                            <!-- Fan Blades Overlay Fixed -->
+                            <g transform="translate(65, 15)">
+                                <g id="fan-blades">
+                                    <path d="M 0 -2 C 8 -16 16 -12 0 -2 Z" fill="#3b82f6" transform="rotate(0)"/>
+                                    <path d="M 0 -2 C 8 -16 16 -12 0 -2 Z" fill="#3b82f6" transform="rotate(120)"/>
+                                    <path d="M 0 -2 C 8 -16 16 -12 0 -2 Z" fill="#3b82f6" transform="rotate(240)"/>
+                                    <circle cx="0" cy="0" r="3" fill="#1e3a8a"/>
+                                </g>
+                            </g>
+
+                            <!-- Ground for Fan -->
+                            <path d="M 81 15 L 95 15 L 95 25" class="wire" />
+                            <path d="M 85 25 L 105 25 M 89 30 L 101 30 M 93 35 L 97 35" class="wire" />
+                            
+                            <!-- Dashed link between coil and switch -->
+                            <line x1="12" y1="43" x2="18" y2="15" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="3,3" />
+                        </g>
+
+                        <defs>
+                            <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+                                <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+                            </marker>
+                        </defs>
+                    </svg>
+                </section>
+
+                <!-- Controls -->
+                <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 shrink-0">
+                    <div class="space-y-5">
+                        <!-- Nhiệt độ ngưỡng -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center">
+                                <label for="slider-unguong" class="text-sm font-bold text-amber-700">Nhiệt độ Ngưỡng</label>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-mono text-gray-500 bg-gray-100 px-1 rounded">U<sub>ng</sub> = <span id="val-unguong-v">2.0</span>V</span>
+                                    <div class="flex items-center bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                                        <span id="val-unguong" class="w-8 text-right font-bold text-amber-700">30</span>
+                                        <span class="text-xs font-bold ml-1 text-amber-700">°C</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <input type="range" id="slider-unguong" min="0" max="100" value="30" step="1" class="accent-amber-500">
+                            <div class="flex justify-between text-[10px] font-bold text-gray-400">
+                                <span>0°C</span><span>50°C</span><span>100°C</span>
+                            </div>
+                        </div>
+
+                        <!-- Nhiệt độ môi trường (Trung bình) -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center">
+                                <label for="slider-sensor" class="text-sm font-bold text-purple-700">Nhiệt độ Môi trường</label>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[10px] text-gray-400">(Dao động ±3°C)</span>
+                                    <div class="flex items-center bg-purple-50 px-2 py-1 rounded border border-purple-200">
+                                        <span id="val-sensor" class="w-8 text-right font-bold text-purple-700">30</span>
+                                        <span class="text-xs font-bold ml-1 text-purple-700">°C</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <input type="range" id="slider-sensor" min="15" max="85" value="30" step="1" class="accent-purple-500">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- AI Tutor Panel with Chat -->
+                <section class="flex-grow bg-white rounded-xl border border-indigo-200 flex flex-col shrink-0 min-h-[250px] shadow-sm overflow-hidden">
+                    <div class="bg-indigo-600 px-3 py-2 flex justify-between items-center text-white shrink-0">
+                        <div class="flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-full bg-white text-indigo-600 flex items-center justify-center font-bold text-xs shadow">AI</div>
+                            <h3 class="font-bold text-sm">Thầy giáo Điện Tử</h3>
+                        </div>
+                        <button id="btn-knowledge" class="text-[11px] bg-indigo-500 hover:bg-indigo-400 px-2 py-1 rounded shadow font-bold tracking-wide transition-colors">KIẾN THỨC & HD</button>
+                    </div>
+                    
+                    <div class="bg-indigo-50 p-2 text-[12px] border-b border-indigo-100 text-gray-700 leading-relaxed shrink-0 flex items-center justify-between" id="ai-status">
+                        <span>Đang phân tích...</span>
+                    </div>
+                    
+                    <div class="flex-grow p-2 overflow-y-auto bg-slate-50 flex flex-col gap-2 text-[13px]" id="chat-history">
+                        <div class="bg-white p-2.5 rounded-lg shadow-sm border border-gray-200 self-start max-w-[90%] chat-bubble">
+                            <span class="font-bold text-indigo-700 text-[11px] block mb-0.5 uppercase tracking-wider">Thầy giáo:</span>
+                            Chào em, hôm nay chúng ta học ứng dụng Mạch So Sánh làm <b>Mạch Cảnh Báo Nhiệt Độ</b>.<br>Thầy đã đặt hệ số chuyển đổi là $15^\circ C = 1V$. Vì vậy ngưỡng $30^\circ C$ tương ứng với $2V$.<br>
+                            Em hãy quan sát: Khi nhiệt độ môi trường vượt quá ngưỡng, tín hiệu cảm biến sinh ra điện áp > 2V, <b>LED ĐỎ sẽ sáng</b> báo động! Em có câu hỏi gì hãy hỏi thầy nhé.
+                        </div>
+                    </div>
+                    
+                    <div class="p-2 bg-white border-t border-gray-200 flex gap-2 items-center shrink-0">
+                        <button id="btn-mic" class="p-2 text-gray-500 bg-gray-100 hover:bg-red-50 hover:text-red-600 rounded-full transition-all" title="Nhấn để nói (Voice)">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                        </button>
+                        <input type="text" id="chat-input" class="flex-grow bg-gray-100 border-none rounded-full px-4 py-2 text-[13px] focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="Hỏi thầy giáo...">
+                        <button id="btn-send" class="p-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition-colors opacity-50 cursor-not-allowed" disabled>
+                            <svg class="w-5 h-5 translate-x-[1px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                        </button>
+                    </div>
+                </section>
+            </div>
+
+            <!-- RIGHT PANEL: Oscilloscope -->
+            <div class="lg:col-span-7 bg-[#2d3748] rounded-2xl shadow-xl border-4 border-[#1a202c] p-3 sm:p-5 flex flex-col justify-between relative overflow-hidden h-full min-h-[350px]">
+                <div class="absolute top-2 left-4 text-xs font-mono text-gray-400 opacity-70">OSCILLOSCOPE PRO - AI.2026</div>
+
+                <div class="bg-[#111827] rounded-lg mt-4 p-2 border-2 border-[#4a5568] shadow-inner flex flex-col flex-grow relative min-h-[150px]">
+                    <div class="absolute top-3 right-3 flex gap-2 sm:gap-3 z-10 pointer-events-none bg-black/60 p-1.5 rounded border border-gray-700">
+                        <div class="text-[10px] sm:text-xs font-mono flex flex-col gap-1">
+                            <span class="text-purple-400 font-bold">CH1(Dao động Nhiệt): Sine</span>
+                            <span class="text-amber-400 font-bold">CH2(Ungưỡng): <span id="os-unguong-val">2.0V</span></span>
+                            <span class="text-red-500 font-bold">CH3(Ura): Sóng vuông</span>
+                        </div>
+                    </div>
+                    <div class="relative w-full h-full rounded overflow-hidden mt-1">
+                        <canvas id="gridCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                        <canvas id="signalCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-[#374151] rounded-lg mt-4 p-3 border-t border-[#4b5563] grid grid-cols-2 gap-4 items-center justify-items-center">
+                    
+                    <div class="knob-container" title="Cuộn chuột để vặn">
+                        <div class="text-[10px] text-gray-300 font-bold uppercase mb-1 tracking-wider text-center">Tốc độ dao động</div>
+                        <div class="knob" id="knob-freq" data-min="1" data-max="50" data-val="10" data-step="1">
+                            <div class="knob-indicator"></div>
+                        </div>
+                        <div class="mt-2 bg-black/50 text-green-400 font-mono text-xs px-2 py-0.5 rounded text-center min-w-[50px]" id="knob-freq-val">10 Hz</div>
+                    </div>
+
+                    <div class="flex flex-col items-center justify-center gap-3 w-full max-w-[150px]">
+                        <button id="btn-pause" class="w-full py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded shadow-lg border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all">
+                            PAUSE
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modal Kiến Thức -->
+    <div id="knowledge-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity opacity-0">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden transform scale-95 transition-transform duration-300" id="modal-content">
+            <div class="bg-indigo-600 p-4 flex justify-between items-center text-white shrink-0">
+                <h2 class="text-xl font-bold flex items-center gap-2">📚 Ứng dụng Mạch So Sánh: Hệ thống Làm Mát</h2>
+                <button id="btn-close-modal" class="text-white hover:bg-indigo-700 p-1 rounded-full"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+            </div>
+            <div class="p-5 overflow-y-auto flex-grow space-y-4 text-gray-800 text-sm">
+                <p>Mạch so sánh dùng Op-Amp là linh kiện cốt lõi để chuyển đổi tín hiệu tương tự (Analog) từ cảm biến thành tín hiệu điều khiển số (Đóng/Ngắt Rơ-le).</p>
+                
+                <section class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <h3 class="font-bold text-blue-800 mb-2">1. Quy đổi Cảm Biến</h3>
+                    <p>Giả sử ta dùng một cảm biến đo nhiệt độ có hệ số: <b>15°C tương ứng 1V</b>.</p>
+                    <ul class="list-disc pl-5 font-mono">
+                        <li>Nếu đặt Ngưỡng = 30°C ➔ $U_{ngưỡng} = 2V$.</li>
+                        <li>Nhiệt độ hiện tại 32°C ➔ $U_{vào} > 2V$.</li>
+                    </ul>
+                </section>
+                
+                <section class="bg-green-50 p-3 rounded-lg border border-green-200">
+                    <h3 class="font-bold text-green-800 mb-2">2. Điều khiển Rơ-le bằng Đi-ốt & Op-Amp</h3>
+                    <p class="mb-2">Ta sử dụng mạch KHÔNG ĐẢO kết hợp một Đi-ốt ở đầu ra để lọc điện áp:</p>
+                    <ul class="list-disc pl-5">
+                        <li>$U_{vào} > U_{ngưỡng}$ ➔ $U_{ra} \approx +U_{cc}$ ➔ Đi-ốt phân cực thuận dẫn điện ➔ <b>Rơ-le Đóng ➔ Quạt quay (Làm mát)</b>.</li>
+                        <li>$U_{vào} < U_{ngưỡng}$ ➔ $U_{ra} \approx -U_{cc}$ ➔ Đi-ốt phân cực nghịch khóa điện ➔ <b>Rơ-le Ngắt ➔ Quạt dừng</b>.</li>
+                    </ul>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State ---
+        let params = {
+            type: 'non-inverting', // Để báo cháy (T tăng -> Đỏ sáng), dùng Không đảo
+            t_nguong: 30, // 30 độ C
+            t_avg: 30,    // Nhiệt độ môi trường trung bình
+            freq: 10,
+            ucc: 15 // Fixed +/- 15V
+        };
+        const TEMP_SCALE = 15; // 15°C = 1V. Vậy 30°C = 2V.
+        let isPaused = false;
+        let time = 0;
+        let animationId;
+
+        // --- Elements ---
+        const els = {
+            toggle: document.getElementById('type-toggle'),
+            labelDao: document.getElementById('label-dao'),
+            labelKhongDao: document.getElementById('label-khongdao'),
+            circuitTitle: document.getElementById('circuit-title'),
+            
+            svgInputTop: document.getElementById('input-top'),
+            svgInputBottom: document.getElementById('input-bottom'),
+            
+            sliderUnguong: document.getElementById('slider-unguong'),
+            sliderSensor: document.getElementById('slider-sensor'),
+            valUnguong: document.getElementById('val-unguong'),
+            valUnguongV: document.getElementById('val-unguong-v'),
+            valSensor: document.getElementById('val-sensor'),
+            
+            osUnguong: document.getElementById('os-unguong-val'),
+            aiStatus: document.getElementById('ai-status'),
+            
+            knobFreq: document.getElementById('knob-freq'),
+            knobFreqVal: document.getElementById('knob-freq-val'),
+            btnPause: document.getElementById('btn-pause'),
+            
+            gridCanvas: document.getElementById('gridCanvas'),
+            signalCanvas: document.getElementById('signalCanvas'),
+            
+            fanBlades: document.getElementById('fan-blades'),
+            relaySwitch: document.getElementById('relay-switch'),
+
+            // Chat & Modal
+            btnKnowledge: document.getElementById('btn-knowledge'),
+            modal: document.getElementById('knowledge-modal'),
+            modalContent: document.getElementById('modal-content'),
+            btnCloseModal: document.getElementById('btn-close-modal'),
+            chatHistory: document.getElementById('chat-history'),
+            chatInput: document.getElementById('chat-input'),
+            btnSend: document.getElementById('btn-send'),
+            btnMic: document.getElementById('btn-mic'),
+        };
+
+        const gridCtx = els.gridCanvas.getContext('2d');
+        const signalCtx = els.signalCanvas.getContext('2d');
+
+        // --- Initialize ---
+        function init() {
+            setupControls();
+            setupKnobs();
+            setupPauseButton();
+            setupUIEvents();
+            window.addEventListener('resize', resizeCanvases);
+            
+            els.toggle.checked = true; // Default: Non-inverting cho báo cháy
+            updateCircuitSVG();
+            updateUI();
+            resizeCanvases();
+            animate();
+        }
+
+        function setupControls() {
+            // Toggle Type
+            els.toggle.addEventListener('change', (e) => {
+                params.type = e.target.checked ? 'non-inverting' : 'inverting';
+                els.labelKhongDao.className = e.target.checked ? "text-sm font-bold text-blue-600" : "text-sm font-bold text-gray-400";
+                els.labelDao.className = !e.target.checked ? "text-sm font-bold text-blue-600" : "text-sm font-bold text-gray-400";
+                els.circuitTitle.textContent = e.target.checked ? "Sơ đồ mạch (Cảnh báo nóng - Không Đảo)" : "Sơ đồ mạch (Cảnh báo lạnh - Đảo)";
+                updateCircuitSVG();
+                updateUI();
+            });
+
+            // Sliders
+            els.sliderUnguong.addEventListener('input', (e) => { params.t_nguong = parseFloat(e.target.value); updateUI(); });
+            els.sliderSensor.addEventListener('input', (e) => { params.t_avg = parseFloat(e.target.value); updateUI(); });
+        }
+
+        function updateCircuitSVG() {
+            els.svgInputTop.innerHTML = '';
+            els.svgInputBottom.innerHTML = '';
+            
+            const u_nguong = params.t_nguong / TEMP_SCALE;
+            
+            const sensorSVG = `
+                <!-- Temp Sensor -->
+                <circle cx="20" cy="0" r="3.5" class="node" fill="#8b5cf6"/>
+                <text x="5" y="-12" fill="#8b5cf6" class="text">Cảm biến</text>
+                <path d="M 20 0 L 40 0" class="wire" stroke="#8b5cf6" />
+                <rect x="40" y="-12" width="28" height="24" rx="3" fill="#ede9fe" stroke="#8b5cf6" stroke-width="2"/>
+                <text x="44" y="4" fill="#8b5cf6" font-size="10" font-weight="bold">t°C</text>
+                <path d="M 68 0 L 120 0" class="wire" />
+            `;
+            
+            const thresholdSVG = `
+                <!-- Potentiometer -->
+                <circle cx="20" cy="0" r="3.5" class="node" fill="#f59e0b"/>
+                <text x="-5" y="-12" fill="#d97706" class="text">U<tspan baseline-shift="sub" font-size="10">ng</tspan> = <tspan id="svg-unguong-val">${u_nguong.toFixed(1)}</tspan>V</text>
+                <path d="M 20 0 L 40 0" class="wire" stroke="#f59e0b" />
+                <rect x="40" y="-8" width="25" height="16" class="resistor" stroke="#d97706" fill="#fef3c7" />
+                <path d="M 52 -15 L 52 -8" stroke="#d97706" stroke-width="2" marker-end="url(#arrow)"/>
+                <path d="M 65 0 L 120 0" class="wire" />
+            `;
+
+            if (params.type === 'inverting') {
+                els.svgInputTop.innerHTML = `<g transform="translate(0, 72)">${sensorSVG}</g>`;
+                els.svgInputBottom.innerHTML = `<g transform="translate(0, 98)">${thresholdSVG}</g>`;
+            } else {
+                els.svgInputTop.innerHTML = `<g transform="translate(0, 72)">${thresholdSVG}</g>`;
+                els.svgInputBottom.innerHTML = `<g transform="translate(0, 98)">${sensorSVG}</g>`;
+            }
+        }
+
+        // --- Knob Logic ---
+        function setupKnobs() {
+            let isDragging = false, startY = 0, startVal = 0;
+            const knobEl = els.knobFreq;
+            const min = 1, max = 50, step = 1;
+
+            const handleMove = (deltaY) => {
+                let newVal = startVal + (deltaY * ((max-min) / 100)); 
+                if (newVal < min) newVal = min; if (newVal > max) newVal = max;
+                newVal = Math.round(newVal);
+                params.freq = newVal;
+                knobEl.style.transform = `rotate(${-135 + ((newVal - min) / (max - min) * 270)}deg)`;
+                els.knobFreqVal.textContent = `${newVal} Hz`;
+            };
+
+            knobEl.addEventListener('mousedown', (e) => { isDragging = true; startY = e.clientY; startVal = params.freq; document.body.style.cursor = 'grabbing'; });
+            document.addEventListener('mousemove', (e) => { if (isDragging) handleMove(startY - e.clientY); });
+            document.addEventListener('mouseup', () => { if(isDragging) { isDragging = false; document.body.style.cursor = 'default'; } });
+            
+            knobEl.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                let dir = e.deltaY < 0 ? 1 : -1;
+                let newVal = params.freq + (dir * step * 2);
+                if (newVal < min) newVal = min; if (newVal > max) newVal = max;
+                params.freq = newVal;
+                knobEl.style.transform = `rotate(${-135 + ((newVal - min) / (max - min) * 270)}deg)`;
+                els.knobFreqVal.textContent = `${newVal} Hz`;
+            }, {passive: false});
+            
+            knobEl.style.transform = `rotate(${-135 + ((params.freq - min) / (max - min) * 270)}deg)`;
+        }
+
+        function setupPauseButton() {
+            els.btnPause.addEventListener('click', () => {
+                isPaused = !isPaused;
+                els.btnPause.textContent = isPaused ? 'RUN' : 'PAUSE';
+                els.btnPause.className = isPaused ? "w-full py-2 bg-green-600 hover:bg-green-500 text-white text-xs font-bold rounded shadow-lg border-b-4 border-green-800 active:border-b-0 active:translate-y-1 transition-all" : "w-full py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded shadow-lg border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all";
+            });
+        }
+
+        function updateUI() {
+            let u_nguong = params.t_nguong / TEMP_SCALE;
+            
+            els.valUnguong.textContent = params.t_nguong;
+            els.valUnguongV.textContent = u_nguong.toFixed(1);
+            els.valSensor.textContent = params.t_avg;
+            
+            els.osUnguong.textContent = `${u_nguong.toFixed(1)}V (${params.t_nguong}°C)`;
+            
+            let svgUnguongLabel = document.getElementById('svg-unguong-val');
+            if(svgUnguongLabel) svgUnguongLabel.textContent = u_nguong.toFixed(1);
+        }
+
+        // --- Chat AI ---
+        const systemPrompt = `Bạn là thầy giáo môn Điện tử. Học sinh đang dùng phần mềm mô phỏng mạch so sánh (Comparator) ứng dụng HỆ THỐNG LÀM MÁT TỰ ĐỘNG.
+Kiến thức nạp sẵn:
+- Cảm biến đo nhiệt độ có hệ số chuyển đổi: 15°C tương ứng 1V. (Nên 30°C = 2V).
+- Mạch đang dùng ở cấu hình KHÔNG ĐẢO (Non-inverting): Điện áp cảm biến (U_vao) nối vào chân (+), U_nguong nối vào chân (-).
+- Nguyên lý: Khi Nhiệt độ > Ngưỡng (U_vao > U_nguong) -> U_ra = +Ucc (+15V) -> Đi-ốt phân cực thuận dẫn điện -> Rơ-le đóng -> Quạt QUAY (Làm mát).
+- Khi Nhiệt độ < Ngưỡng (U_vao < U_nguong) -> U_ra = -Ucc (-15V) -> Đi-ốt phân cực nghịch khóa dòng -> Rơ-le ngắt -> Quạt DỪNG.
+Quy tắc: Xưng "thầy", gọi "em". Giải thích dễ hiểu, ngắn gọn (1-2 đoạn). Dùng định dạng in đậm nhấn mạnh.`;
+
+        let chatContext = [
+            { role: "user", parts: [{ text: "Tôi là học sinh. Bắt đầu vai trò thầy giáo." }] },
+            { role: "model", parts: [{ text: "Chào em, hôm nay chúng ta học ứng dụng Mạch So Sánh thiết kế **Hệ thống Quạt Làm Mát Tự Động**.<br>Thầy đã đặt hệ số chuyển đổi là $15^\circ C = 1V$. Vì vậy ngưỡng $30^\circ C$ tương ứng với $2V$.<br>Em hãy quan sát: Khi nhiệt độ môi trường vượt qua ngưỡng, tín hiệu cảm biến sinh ra điện áp > 2V, Ura mang mức điện áp dương làm cho Đi-ốt dẫn điện, kích Rơ-le đóng mạch khiến **Quạt quay** để làm mát! Em có câu hỏi gì hãy hỏi thầy nhé." }] }
+        ];
+
+        function addChatMessage(sender, text) {
+            const div = document.createElement('div');
+            const isUser = sender === 'user';
+            div.className = `p-2.5 rounded-lg shadow-sm border max-w-[90%] chat-bubble text-[13px] ${isUser ? 'bg-indigo-100 border-indigo-200 self-end' : 'bg-white border-gray-200 self-start'}`;
+            const name = isUser ? 'Học sinh' : 'Thầy giáo';
+            div.innerHTML = `<span class="font-bold ${isUser ? 'text-indigo-800' : 'text-indigo-700'} text-[11px] block mb-1 uppercase tracking-wider">${name}:</span><span>${text.replace(/\n/g, '<br>')}</span>`;
+            els.chatHistory.appendChild(div);
+            els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+        }
+
+        async function sendToTeacherAI(message) {
+            addChatMessage('user', message);
+            chatContext.push({ role: "user", parts: [{ text: message }] });
+            
+            const typingDiv = document.createElement('div');
+            typingDiv.className = `p-2.5 rounded-lg border bg-white self-start chat-bubble text-[13px] text-gray-500 italic`;
+            typingDiv.id = 'typing-indicator';
+            typingDiv.innerHTML = `Thầy đang suy nghĩ...`;
+            els.chatHistory.appendChild(typingDiv);
+            els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+
+            try {
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                
+                const u_nguong = params.t_nguong / TEMP_SCALE;
+                const sysState = `[HỆ THỐNG: Mạch ở chế độ ${params.type === 'inverting' ? 'Đảo' : 'Không Đảo'}, Ngưỡng nhiệt = ${params.t_nguong}°C (${u_nguong.toFixed(1)}V), Nhiệt độ môi trường trung bình = ${params.t_avg}°C]. `;
+                let payloadContext = JSON.parse(JSON.stringify(chatContext));
+                payloadContext[payloadContext.length - 1].parts[0].text = sysState + message;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: payloadContext, systemInstruction: { parts: [{ text: systemPrompt }] } })
+                });
+                const result = await response.json();
+                document.getElementById('typing-indicator')?.remove();
+
+                if (result.candidates) {
+                    const aiText = result.candidates[0].content.parts[0].text;
+                    addChatMessage('model', aiText);
+                    chatContext.push({ role: "model", parts: [{ text: aiText }] });
+                }
+            } catch (e) {
+                document.getElementById('typing-indicator')?.remove();
+                addChatMessage('model', 'Lỗi mạng, em thử lại sau nhé.');
+                chatContext.pop();
+            }
+        }
+
+        function setupUIEvents() {
+            const handleSend = () => {
+                const text = els.chatInput.value.trim();
+                if(text) { els.chatInput.value = ''; els.btnSend.disabled = true; els.btnSend.classList.add('opacity-50'); sendToTeacherAI(text); }
+            };
+            els.btnSend.addEventListener('click', handleSend);
+            els.chatInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') handleSend(); });
+            els.chatInput.addEventListener('input', () => {
+                els.btnSend.disabled = els.chatInput.value.trim().length === 0;
+                els.btnSend.classList.toggle('opacity-50', els.chatInput.value.trim().length === 0);
+            });
+
+            // Modal
+            els.btnKnowledge.addEventListener('click', () => { els.modal.classList.remove('hidden'); setTimeout(() => { els.modal.classList.remove('opacity-0'); els.modalContent.classList.remove('scale-95'); }, 10); });
+            const closeModal = () => { els.modal.classList.add('opacity-0'); els.modalContent.classList.add('scale-95'); setTimeout(() => els.modal.classList.add('hidden'), 300); };
+            els.btnCloseModal.addEventListener('click', closeModal);
+            els.modal.addEventListener('click', (e) => { if(e.target === els.modal) closeModal(); });
+        }
+
+        // --- Canvas Rendering ---
+        function resizeCanvases() {
+            const container = els.gridCanvas.parentElement;
+            const w = container.clientWidth, h = container.clientHeight, dpr = window.devicePixelRatio || 1;
+            [els.gridCanvas, els.signalCanvas].forEach(c => { c.width = w * dpr; c.height = h * dpr; c.style.width = `${w}px`; c.style.height = `${h}px`; c.getContext('2d').scale(dpr, dpr); });
+            drawGrid(w, h);
+        }
+
+        function drawGrid(w, h) {
+            gridCtx.clearRect(0, 0, w, h);
+            const vDivs = 8, hDivs = 10, cellW = w / hDivs, cellH = h / vDivs, centerY = h / 2;
+
+            gridCtx.beginPath(); gridCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)'; gridCtx.lineWidth = 1;
+            for (let i = 0; i <= hDivs; i++) { gridCtx.moveTo(i * cellW, 0); gridCtx.lineTo(i * cellW, h); }
+            for (let i = 0; i <= vDivs; i++) { gridCtx.moveTo(0, i * cellH); gridCtx.lineTo(w, i * cellH); }
+            gridCtx.stroke();
+
+            gridCtx.beginPath(); gridCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; gridCtx.lineWidth = 1.5;
+            gridCtx.moveTo(0, centerY); gridCtx.lineTo(w, centerY); gridCtx.moveTo(w/2, 0); gridCtx.lineTo(w/2, h);
+            gridCtx.stroke();
+            
+            // Vẽ thang đo Volts
+            gridCtx.fillStyle = 'rgba(255,255,255,0.5)'; gridCtx.font = '10px monospace';
+            gridCtx.fillText('+15V (225°C)', w/2 + 5, 12); 
+            gridCtx.fillText('-15V', w/2 + 5, h - 5);
+        }
+
+        function drawSignals() {
+            const w = els.signalCanvas.clientWidth, h = els.signalCanvas.clientHeight, centerY = h / 2;
+            const scaleY = (h / 2) / 18; // Map 15V slightly inside the canvas top/bottom
+            
+            signalCtx.clearRect(0, 0, w, h);
+            const speedFactor = params.freq * 0.001; 
+            
+            const pathVao = new Path2D();
+            const pathNguong = new Path2D();
+            const pathRa = new Path2D();
+
+            let currentVra = 0;
+
+            for (let x = 0; x <= w; x++) {
+                const t = time - (w - x) * 0.05; 
+                // Dao động nhiệt độ +/- 3 độ C quanh nhiệt độ trung bình
+                const current_temp = params.t_avg + 3 * Math.sin(t);
+                
+                const u_vao = current_temp / TEMP_SCALE;
+                const u_nguong = params.t_nguong / TEMP_SCALE;
+                let u_ra = 0;
+
+                if (params.type === 'non-inverting') {
+                    u_ra = u_vao > u_nguong ? params.ucc : -params.ucc;
+                } else {
+                    u_ra = u_vao > u_nguong ? -params.ucc : params.ucc;
+                }
+
+                if (x === w) currentVra = u_ra;
+
+                const yVao = centerY - (u_vao * scaleY);
+                const yNguong = centerY - (u_nguong * scaleY);
+                const yRa = centerY - (u_ra * scaleY);
+
+                if (x === 0) {
+                    pathVao.moveTo(x, yVao); pathNguong.moveTo(x, yNguong); pathRa.moveTo(x, yRa);
+                } else {
+                    pathVao.lineTo(x, yVao); pathNguong.lineTo(x, yNguong); pathRa.lineTo(x, yRa);
+                }
+            }
+
+            // Draw U_vao (Purple)
+            signalCtx.strokeStyle = '#a855f7'; signalCtx.lineWidth = 2.5; signalCtx.stroke(pathVao);
+            
+            // Draw U_nguong (Amber Dashed)
+            signalCtx.beginPath(); signalCtx.setLineDash([5, 5]); signalCtx.strokeStyle = '#f59e0b'; signalCtx.lineWidth = 2; signalCtx.stroke(pathNguong); signalCtx.setLineDash([]);
+            
+            // Draw U_ra (Red Square Wave)
+            signalCtx.strokeStyle = '#ef4444'; signalCtx.lineWidth = 2.5; signalCtx.lineJoin = 'round'; signalCtx.stroke(pathRa);
+
+            // Update Relay & Fan based on current output
+            if (currentVra > 0) {
+                els.relaySwitch.style.transform = 'rotate(0deg)';
+                els.fanBlades.classList.add('fan-spin');
+                const current_temp_display = (params.t_avg + 3 * Math.sin(time)).toFixed(1);
+                els.aiStatus.innerHTML = `Nhiệt độ: <b class="text-purple-700">${current_temp_display}°C</b> <span class="mx-1">${params.type === 'non-inverting' ? '>' : '<'}</span> Ngưỡng <span class="mx-1">➔</span> ĐÓNG RƠ-LE (Quạt Quay)`;
+            } else {
+                els.relaySwitch.style.transform = 'rotate(-30deg)';
+                els.fanBlades.classList.remove('fan-spin');
+                const current_temp_display = (params.t_avg + 3 * Math.sin(time)).toFixed(1);
+                els.aiStatus.innerHTML = `Nhiệt độ: <b class="text-purple-700">${current_temp_display}°C</b> <span class="mx-1">${params.type === 'non-inverting' ? '<' : '>'}</span> Ngưỡng <span class="mx-1">➔</span> NGẮT RƠ-LE (Quạt Dừng)`;
+            }
+
+            if (!isPaused) time += speedFactor;
+        }
+
+        function animate() { drawSignals(); animationId = requestAnimationFrame(animate); }
+        window.onload = init;
+    </script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Mô Phỏng Thực Hành Công Nghệ & AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        
+        /* Custom Scrollbar for Sidebar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        .menu-item { transition: all 0.3s ease; }
+        .menu-item:hover { background-color: rgba(255, 255, 255, 0.1); transform: translateX(5px); }
+        .menu-item.active { 
+            background: linear-gradient(90deg, #4f46e5 0%, #3b82f6 100%);
+            border-left: 4px solid #60a5fa;
+            color: white;
+            font-weight: 600;
+        }
+
+        .category-title {
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            font-weight: 700;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            padding-left: 1rem;
+        }
+
+        #loader {
+            transition: opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex text-slate-800">
+
+    <!-- SIDEBAR -->
+    <aside class="w-72 bg-slate-900 text-slate-300 flex flex-col h-full shadow-2xl z-20 shrink-0">
+        <!-- Logo / Header -->
+        <div class="h-16 flex items-center px-6 bg-slate-950 border-b border-slate-800 shrink-0 gap-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg">
+                <i class="fas fa-atom text-lg"></i>
+            </div>
+            <h1 class="text-sm font-bold text-white leading-tight uppercase tracking-wide">
+                Hệ Thống Mô Phỏng <br><span class="text-indigo-400">Tích hợp AI</span>
+            </h1>
+        </div>
+
+        <!-- Navigation Menu -->
+        <nav class="flex-1 overflow-y-auto pb-6 px-3" id="sidebar-nav">
+            
+            <!-- NHÓM 1: ĐIỆN TỬ CƠ BẢN -->
+            <div class="category-title"><i class="fas fa-microchip mr-2"></i>Điện tử cơ bản</div>
+            <a href="#" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg mb-1 text-sm text-slate-300" 
+               data-src="Doc vach mau dien tro, cong dung cua dien tro..html" data-title="Điện Trở & Định Luật Ohm">
+                <i class="fas fa-palette w-5 text-center"></i> 
+                <span>Định luật Ohm & Vạch màu</span>
+            </a>
+            <a href="#" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg mb-1 text-sm text-slate-300" 
+               data-src="Doc vach mau dien tro.html" data-title="Chuyên Đề Điện Trở (AI Camera)">
+                <i class="fas fa-camera w-5 text-center"></i> 
+                <span>Điện Trở (AI Camera & Game)</span>
+            </a>
+
+            <!-- NHÓM 2: LẬP TRÌNH ARDUINO -->
+            <div class="category-title"><i class="fas fa-code mr-2"></i>Lập trình Arduino</div>
+            <a href="#" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg mb-1 text-sm text-slate-300" 
+               data-src="Lap trình code.html" data-title="Hệ Thống Cảnh Báo An Ninh (PIR + LDR)">
+                <i class="fas fa-running w-5 text-center"></i> 
+                <span>Cảm biến chuyển động PIR</span>
+            </a>
+            <a href="#" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg mb-1 text-sm text-slate-300" 
+               data-src="Lap trinh den giao thong..html" data-title="Arduino Traffic Light & AI Tutor">
+                <i class="fas fa-traffic-light w-5 text-center"></i> 
+                <span>Điều khiển đèn giao thông</span>
+            </a>
+
+            <!-- NHÓM 3: MẠCH ĐIỆN DÂN DỤNG -->
+            <div class="category-title"><i class="fas fa-home mr-2"></i>Mạch điện Dân dụng</div>
+            <a href="#" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg mb-1 text-sm text-slate-300" 
+               data-src="Mach dien cau thang.html" data-title="Mạch Điện Cầu Thang">
+                <i class="fas fa-stairs w-5 text-center"></i> 
+                <span>Mạch điện cầu thang</span>
+            </a>
+
+            <!-- NHÓM 4: KHUẾCH ĐẠI THUẬT TOÁN -->
+            <div class="category-title"><i class="fas fa-wave-square mr-2"></i>Op-Amp & Mạch Tương Tự</div>
+            <a href="#" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg mb-1 text-sm text-slate-300" 
+               data-src="MẠCH KHUẾCH ĐẠI ĐẢO v3.html" data-title="Mạch Khuếch Đại Đảo (Inverting Amp)">
+                <i class="fas fa-project-diagram w-5 text-center"></i> 
+                <span>Mạch khuếch đại đảo</span>
+            </a>
+            <a href="#" class="menu-item flex items-center gap-3 px-4 py-3 rounded-lg mb-1 text-sm text-slate-300" 
+               data-src="Mạch so sánh Động cơ quay.html" data-title="Mạch So Sánh - Cảnh Báo Nhiệt Độ">
+                <i class="fas fa-thermometer-half w-5 text-center"></i> 
+                <span>Mạch so sánh (Báo nhiệt độ)</span>
+            </a>
+
+        </nav>
+
+        <!-- Footer Sidebar -->
+        <div class="p-4 border-t border-slate-800 text-xs text-center text-slate-500 bg-slate-950 shrink-0">
+            <p>Hệ thống mô phỏng giáo dục <br> Tích hợp Gia sư AI © 2026</p>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex-1 flex flex-col h-full bg-slate-100 relative">
+        
+        <!-- Topbar -->
+        <header class="h-16 bg-white border-b border-slate-200 shadow-sm flex items-center justify-between px-6 shrink-0 z-10">
+            <div class="flex items-center gap-4">
+                <button id="mobile-menu-btn" class="lg:hidden text-slate-500 hover:text-indigo-600 focus:outline-none">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                <div class="flex items-center gap-3">
+                    <div class="w-2 h-8 rounded bg-indigo-500"></div>
+                    <h2 id="current-title" class="text-lg font-bold text-slate-800">Vui lòng chọn bài thực hành</h2>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-sm font-medium text-slate-500 flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Môi trường AI sẵn sàng
+                </div>
+            </div>
+        </header>
+
+        <!-- Iframe Container -->
+        <div class="flex-1 relative w-full h-full p-2 sm:p-4">
+            <!-- Loading Indicator -->
+            <div id="loader" class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-100 opacity-0 pointer-events-none">
+                <i class="fas fa-circle-notch fa-spin text-4xl text-indigo-500 mb-4"></i>
+                <p class="text-slate-500 font-medium">Đang tải mô phỏng...</p>
+            </div>
+
+            <!-- Khung hiển thị file con -->
+            <iframe id="sim-frame" src="" class="w-full h-full bg-white rounded-xl shadow-md border border-slate-200" title="Mô phỏng thực hành"></iframe>
+            
+            <!-- Welcome Screen (Hiển thị khi chưa chọn file) -->
+            <div id="welcome-screen" class="absolute inset-4 z-0 bg-white rounded-xl shadow-md border border-slate-200 flex flex-col items-center justify-center text-center p-8">
+                <img src="https://cdn-icons-png.flaticon.com/512/2083/2083213.png" alt="Education" class="w-32 h-32 mb-6 opacity-80">
+                <h2 class="text-2xl font-bold text-slate-800 mb-2">Chào mừng đến với Hệ Thống Mô Phỏng</h2>
+                <p class="text-slate-500 max-w-lg mb-8">Hãy chọn một bài thực hành từ menu bên trái. Mỗi bài học đều được thiết kế với môi trường vật lý tương tác trực tiếp và Gia sư AI hỗ trợ 1-1.</p>
+                <div class="flex gap-4">
+                    <div class="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg font-medium">
+                        <i class="fas fa-check-circle"></i> Trực quan
+                    </div>
+                    <div class="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg font-medium">
+                        <i class="fas fa-robot"></i> Gia sư AI
+                    </div>
+                    <div class="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg font-medium">
+                        <i class="fas fa-microchip"></i> Thực tế
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const menuItems = document.querySelectorAll('.menu-item');
+            const iframe = document.getElementById('sim-frame');
+            const currentTitle = document.getElementById('current-title');
+            const welcomeScreen = document.getElementById('welcome-screen');
+            const loader = document.getElementById('loader');
+
+            function loadModule(item) {
+                // Xóa trạng thái active cũ
+                menuItems.forEach(menu => menu.classList.remove('active'));
+                
+                // Set trạng thái active mới
+                item.classList.add('active');
+                
+                const src = item.getAttribute('data-src');
+                const title = item.getAttribute('data-title');
+
+                // Cập nhật tiêu đề
+                currentTitle.textContent = title;
+                
+                // Hiển thị hiệu ứng tải
+                loader.classList.remove('opacity-0');
+                loader.classList.remove('pointer-events-none');
+                
+                // Ẩn màn hình welcome, tải Iframe
+                welcomeScreen.style.display = 'none';
+                iframe.src = src;
+
+                // Ẩn hiệu ứng tải khi iframe load xong
+                iframe.onload = () => {
+                    loader.classList.add('opacity-0');
+                    setTimeout(() => loader.classList.add('pointer-events-none'), 300);
+                };
+            }
+
+            // Gắn sự kiện click cho các menu
+            menuItems.forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    loadModule(item);
+                });
+            });
+
+            // Tùy chọn: Tự động tải bài đầu tiên khi mở trang
+            // Bỏ comment dòng dưới nếu muốn vừa vào web là load ngay bài 1
+            // if(menuItems.length > 0) loadModule(menuItems[0]);
+        });
+    </script>
+</body>
+</html>

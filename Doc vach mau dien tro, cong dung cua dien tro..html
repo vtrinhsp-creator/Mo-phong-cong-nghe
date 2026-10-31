@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng Điện Trở & Mạch Điện AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Share+Tech+Mono&display=swap');
+
+        body { 
+            background-color: #f0f2f5; 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        header { background-color: #ffffff; border-bottom: 1px solid #e5e7eb; z-index: 20; position: relative; }
+        main { display: flex; flex: 1; overflow: hidden; }
+        
+        #workspace { flex: 3; overflow-y: auto; position: relative; padding: 1rem; }
+        #ai-panel { flex: 1; min-width: 350px; max-width: 400px; background: white; border-left: 1px solid #e5e7eb; display: flex; flex-direction: column; z-index: 30; }
+
+        .digital-font { font-family: 'Share Tech Mono', monospace; font-weight: 400; }
+
+        /* 3D styling for Resistor */
+        .resistor-body-3d { background: linear-gradient(to bottom, #d2b48c 0%, #e3cfa8 30%, #cda776 70%, #b8905e 100%); box-shadow: inset 0 -4px 8px rgba(0,0,0,0.25), 0 5px 10px rgba(0,0,0,0.15); }
+        .color-band-3d { width: 18px; height: 100%; box-shadow: inset 3px 0 5px rgba(255,255,255,0.4), inset -3px 0 5px rgba(0,0,0,0.4); transition: background-color 0.3s ease; }
+        .wire-3d { width: 60px; height: 8px; background: linear-gradient(to bottom, #cbd5e1, #94a3b8, #64748b); box-shadow: 0 3px 5px rgba(0,0,0,0.1); }
+
+        @keyframes flow { to { stroke-dashoffset: -30; } }
+        .electron-flow { stroke-dasharray: 10 20; animation: flow linear infinite; }
+
+        input[type=range] { accent-color: #3b82f6; }
+
+        /* Chat AI Styles */
+        #chat-history { flex: 1; overflow-y: auto; padding: 15px; background: #f8fafc; display: flex; flex-direction: column; gap: 10px; }
+        .chat-msg { max-width: 85%; line-height: 1.5; font-size: 14px; padding: 10px 15px; border-radius: 12px; animation: fadeIn 0.3s ease; }
+        .msg-ai { align-self: flex-start; background-color: #e0f2fe; color: #0369a1; border-bottom-left-radius: 2px; border: 1px solid #bae6fd; }
+        .msg-user { align-self: flex-end; background-color: #3b82f6; color: white; border-bottom-right-radius: 2px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        @keyframes pulse-mic { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        .mic-recording { color: #ef4444 !important; animation: pulse-mic 1.5s infinite; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="p-3 shadow-sm flex items-center justify-between">
+        <div class="flex items-center gap-3 pl-2">
+            <div class="bg-indigo-600 text-white w-10 h-10 flex justify-center items-center rounded-lg shadow-sm">
+                <i class="fas fa-microchip"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-gray-800 leading-tight">Mô Phỏng Điện Trở & Định Luật Ohm</h1>
+                <p class="text-xs text-gray-500">Hệ thống phân tích mạch điện tích hợp Gia sư AI thời gian thực</p>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- VÙNG LÀM VIỆC (WORKSPACE) -->
+        <div id="workspace">
+            <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                
+                <!-- PHẦN 1: BỘ TÍNH TOÁN ĐIỆN TRỞ -->
+                <section class="xl:col-span-5 bg-white rounded-2xl shadow p-5 border border-slate-200">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center border-b border-slate-100 pb-3">
+                        <i class="fas fa-palette text-indigo-500 mr-2"></i> 1. Cấu Hình Vạch Màu
+                    </h2>
+
+                    <!-- Visual Resistor -->
+                    <div class="flex items-center justify-center my-6">
+                        <div class="wire-3d rounded-l-full"></div>
+                        <div class="resistor-body-3d w-64 h-20 rounded-[20px] relative flex items-center justify-between px-8 z-10">
+                            <div id="ui-band1" class="color-band-3d rounded-sm"></div>
+                            <div id="ui-band2" class="color-band-3d rounded-sm"></div>
+                            <div id="ui-band3" class="color-band-3d rounded-sm"></div>
+                            <div class="w-8"></div>
+                            <div id="ui-band4" class="color-band-3d rounded-sm"></div>
+                        </div>
+                        <div class="wire-3d rounded-r-full"></div>
+                    </div>
+
+                    <!-- Calculated Value Display -->
+                    <div class="text-center mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Giá Trị Đọc Được</p>
+                        <div class="text-3xl font-black text-indigo-600 font-mono tracking-tighter" id="display-resistance">10 kΩ ± 5%</div>
+                    </div>
+
+                    <!-- Select Inputs -->
+                    <div class="grid grid-cols-2 gap-3 mb-6">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">Vạch 1 (Chục)</label>
+                            <select id="sel-band1" class="w-full border-2 border-slate-200 rounded-lg p-2 text-sm font-bold shadow-sm outline-none" onchange="calcColorsToValue()"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">Vạch 2 (Đơn vị)</label>
+                            <select id="sel-band2" class="w-full border-2 border-slate-200 rounded-lg p-2 text-sm font-bold shadow-sm outline-none" onchange="calcColorsToValue()"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">Vạch 3 (Nhân)</label>
+                            <select id="sel-band3" class="w-full border-2 border-slate-200 rounded-lg p-2 text-sm font-bold shadow-sm outline-none" onchange="calcColorsToValue()"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-1">Vạch 4 (Sai số)</label>
+                            <select id="sel-band4" class="w-full border-2 border-slate-200 rounded-lg p-2 text-sm font-bold shadow-sm outline-none" onchange="calcColorsToValue()"></select>
+                        </div>
+                    </div>
+
+                    <!-- Reverse Calculation -->
+                    <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                        <label class="block text-xs font-bold text-indigo-900 mb-2">Tìm màu vạch từ số (VD: 4700, 4.7k, 1M):</label>
+                        <div class="flex shadow-sm rounded-lg">
+                            <input type="text" id="input-reverse" class="flex-1 border-2 border-indigo-200 border-r-0 rounded-l-lg p-2 outline-none font-mono text-sm bg-white" placeholder="Nhập số...">
+                            <button onclick="calcValueToColors()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-r-lg font-bold text-sm transition-colors">Tìm Vạch</button>
+                        </div>
+                        <p id="error-reverse" class="text-red-500 text-xs font-bold mt-2 hidden"><i class="fas fa-triangle-exclamation"></i> Không phân giải được.</p>
+                    </div>
+                </section>
+
+                <!-- PHẦN 2: SƠ ĐỒ MẠCH ĐIỆN -->
+                <section class="xl:col-span-7 bg-slate-900 rounded-2xl shadow p-5 text-white border border-slate-800 flex flex-col">
+                    <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-3">
+                        <h2 class="text-lg font-bold flex items-center text-slate-100">
+                            <i class="fas fa-bolt text-amber-400 mr-2"></i> 2. Mạch Nối Tiếp & Định Luật Ohm
+                        </h2>
+                        <div class="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700">
+                            <button id="btn-fixed" onclick="setResistorMode('fixed')" class="text-xs font-bold px-3 py-1.5 rounded bg-blue-600 text-white transition-colors">Cố Định</button>
+                            <button id="btn-var" onclick="setResistorMode('variable')" class="text-xs font-bold px-3 py-1.5 rounded text-slate-400 hover:text-white transition-colors">Biến Trở</button>
+                        </div>
+                    </div>
+
+                    <!-- SVG Circuit -->
+                    <div class="relative w-full flex-1 bg-slate-950 rounded-xl border border-slate-700 p-2 overflow-x-auto flex items-center justify-center min-h-[250px]">
+                        <svg viewBox="0 0 1000 350" class="min-w-[800px] w-full h-auto drop-shadow-lg" preserveAspectRatio="xMidYMid meet">
+                            <defs>
+                                <radialGradient id="glow-bulb" cx="50%" cy="50%" r="50%">
+                                    <stop offset="0%" stop-color="#fef08a" stop-opacity="1"/>
+                                    <stop offset="50%" stop-color="#eab308" stop-opacity="0.6"/>
+                                    <stop offset="100%" stop-color="#ca8a04" stop-opacity="0"/>
+                                </radialGradient>
+                                <radialGradient id="glass-glare" cx="40%" cy="30%" r="60%">
+                                    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.3"/>
+                                    <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+                                </radialGradient>
+                                <clipPath id="svg-resistor-clip">
+                                    <path d="M 10 15 C 10 5, 20 0, 25 5 L 95 5 C 100 0, 110 5, 110 15 C 110 25, 100 30, 95 25 L 25 25 C 20 30, 10 25, 10 15 Z" />
+                                </clipPath>
+                            </defs>
+
+                            <!-- Wires -->
+                            <path d="M 100 240 L 100 180 L 850 180 L 850 300 L 100 300 L 100 280" fill="none" stroke="#475569" stroke-width="6" stroke-linejoin="round"/>
+                            <path d="M 460 180 L 460 70 L 515 70" fill="none" stroke="#475569" stroke-width="4"/>
+                            <path d="M 640 180 L 640 70 L 585 70" fill="none" stroke="#475569" stroke-width="4"/>
+                            <circle cx="460" cy="180" r="5" fill="#94a3b8"/>
+                            <circle cx="640" cy="180" r="5" fill="#94a3b8"/>
+
+                            <!-- Electron Flow -->
+                            <g id="anim-flow" class="opacity-0 transition-opacity duration-300">
+                                <path id="path-flow" d="M 100 240 L 100 180 L 850 180 L 850 300 L 100 300 L 100 280" fill="none" stroke="#fde047" stroke-width="3" class="electron-flow"/>
+                                <path id="path-flow-v1" d="M 460 180 L 460 70 L 515 70" fill="none" stroke="#38bdf8" stroke-width="2" class="electron-flow"/>
+                                <path id="path-flow-v2" d="M 585 70 L 640 70 L 640 180" fill="none" stroke="#38bdf8" stroke-width="2" class="electron-flow"/>
+                            </g>
+
+                            <!-- Battery -->
+                            <g transform="translate(60, 240)">
+                                <rect x="0" y="0" width="80" height="40" fill="#1e293b" stroke="#0f172a" stroke-width="2" rx="4"/>
+                                <rect x="0" y="0" width="30" height="40" fill="#f59e0b" rx="4"/>
+                                <rect x="25" y="0" width="10" height="40" fill="#f59e0b"/>
+                                <rect x="35" y="-8" width="10" height="8" fill="#94a3b8" rx="2"/>
+                                <text x="55" y="25" fill="white" font-size="16" font-weight="bold" text-anchor="middle">9V</text>
+                                <text x="15" y="27" fill="black" font-size="28" font-weight="bold" text-anchor="middle">-</text>
+                                <text x="40" y="-12" fill="#ef4444" font-size="24" font-weight="bold" text-anchor="middle">+</text> 
+                            </g>
+
+                            <!-- Ammeter -->
+                            <g transform="translate(300, 180)">
+                                <rect x="-45" y="-4" width="90" height="8" fill="#020617"/> 
+                                <circle cx="0" cy="0" r="40" fill="#334155" stroke="#475569" stroke-width="4"/>
+                                <circle cx="0" cy="0" r="34" fill="#0f172a"/>
+                                <rect x="-26" y="-14" width="52" height="28" fill="#000" rx="3" stroke="#1e293b" stroke-width="2"/>
+                                <text id="meter-amp" x="0" y="6" fill="#22c55e" font-size="16" class="digital-font" text-anchor="middle">0.00</text>
+                                <text x="0" y="-20" fill="white" font-size="14" font-weight="bold" text-anchor="middle">A</text>
+                                <text x="0" y="26" fill="#94a3b8" font-size="10" font-weight="bold" text-anchor="middle">mA</text>
+                                <circle cx="0" cy="0" r="34" fill="url(#glass-glare)"/>
+                            </g>
+
+                            <!-- Resistor Group -->
+                            <g transform="translate(490, 165)">
+                                <rect x="-20" y="-4" width="160" height="8" fill="#020617"/> 
+                                
+                                <!-- FIXED -->
+                                <g id="svg-fixed-resistor">
+                                    <line x1="-30" y1="15" x2="10" y2="15" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
+                                    <line x1="110" y1="15" x2="150" y2="15" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
+                                    <path d="M 10 15 C 10 5, 20 0, 25 5 L 95 5 C 100 0, 110 5, 110 15 C 110 25, 100 30, 95 25 L 25 25 C 20 30, 10 25, 10 15 Z" fill="#d2b48c" stroke="#8b5a2b" stroke-width="2"/>
+                                    <g clip-path="url(#svg-resistor-clip)">
+                                        <rect id="svg-band1" x="25" y="0" width="12" height="30" fill="brown" />
+                                        <rect id="svg-band2" x="42" y="0" width="12" height="30" fill="black" />
+                                        <rect id="svg-band3" x="59" y="0" width="12" height="30" fill="red" />
+                                        <rect id="svg-band4" x="85" y="0" width="12" height="30" fill="gold" />
+                                    </g>
+                                    <text x="60" y="-12" fill="#38bdf8" font-size="16" font-weight="bold" text-anchor="middle" id="txt-fixed-val">10 kΩ</text>
+                                </g>
+
+                                <!-- VARIABLE -->
+                                <g id="svg-var-resistor" class="hidden">
+                                    <line x1="-30" y1="15" x2="20" y2="15" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
+                                    <line x1="100" y1="15" x2="150" y2="15" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
+                                    <circle cx="60" cy="15" r="32" fill="#475569" stroke="#1e293b" stroke-width="3"/>
+                                    <circle cx="60" cy="15" r="25" fill="#94a3b8"/>
+                                    <rect x="25" y="47" width="8" height="10" fill="#cbd5e1"/>
+                                    <rect x="56" y="47" width="8" height="10" fill="#cbd5e1"/>
+                                    <rect x="87" y="47" width="8" height="10" fill="#cbd5e1"/>
+                                    <path d="M 20 15 L 20 47" stroke="#94a3b8" stroke-width="4"/>
+                                    <path d="M 100 15 L 60 47" stroke="#94a3b8" stroke-width="4"/>
+                                    <g id="svg-pot-knob" transform="rotate(-135, 60, 15)">
+                                        <circle cx="60" cy="15" r="20" fill="#1e293b" stroke="#020617" stroke-width="2"/>
+                                        <circle cx="60" cy="15" r="14" fill="#334155"/>
+                                        <line x1="60" y1="15" x2="60" y2="-3" stroke="#3b82f6" stroke-width="4" stroke-linecap="round"/>
+                                        <circle cx="60" cy="15" r="16" fill="none" stroke="#64748b" stroke-width="1" stroke-dasharray="2 4"/>
+                                    </g>
+                                    <text x="60" y="-22" fill="#3b82f6" font-size="16" font-weight="bold" text-anchor="middle" id="txt-var-val">0 Ω</text>
+                                </g>
+                            </g>
+
+                            <!-- Voltmeter -->
+                            <g transform="translate(550, 70)">
+                                <circle cx="0" cy="0" r="35" fill="#334155" stroke="#475569" stroke-width="4"/>
+                                <circle cx="0" cy="0" r="30" fill="#0f172a"/>
+                                <rect x="-24" y="-12" width="48" height="24" fill="#000" rx="3" stroke="#1e293b" stroke-width="2"/>
+                                <text id="meter-volt" x="0" y="5" fill="#ef4444" font-size="15" class="digital-font" text-anchor="middle">0.00</text>
+                                <text x="0" y="-18" fill="white" font-size="12" font-weight="bold" text-anchor="middle">V</text>
+                                <text x="0" y="24" fill="#94a3b8" font-size="9" font-weight="bold" text-anchor="middle">Volts</text>
+                                <circle cx="0" cy="0" r="30" fill="url(#glass-glare)"/>
+                            </g>
+
+                            <!-- Lightbulb -->
+                            <g transform="translate(850, 180)">
+                                <circle id="svg-glow" cx="0" cy="-35" r="75" fill="url(#glow-bulb)" opacity="0" class="transition-opacity duration-200"/>
+                                <rect x="-20" y="0" width="40" height="25" fill="#64748b" rx="3"/>
+                                <line x1="-20" y1="5" x2="20" y2="8" stroke="#334155" stroke-width="3"/>
+                                <line x1="-20" y1="12" x2="20" y2="15" stroke="#334155" stroke-width="3"/>
+                                <line x1="-20" y1="19" x2="20" y2="22" stroke="#334155" stroke-width="3"/>
+                                <path d="M -50 15 L -20 15 M 20 15 L 50 15" fill="none" stroke="#475569" stroke-width="6"/>
+                                <circle id="svg-glass" cx="0" cy="-35" r="32" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2" class="transition-colors duration-200"/>
+                                <circle cx="-10" cy="-45" r="12" fill="url(#glass-glare)"/>
+                                <path id="svg-filament" d="M -8 -1 L -8 -20 L -15 -35 L 0 -45 L 15 -35 L 8 -20 L 8 -1" fill="none" stroke="#64748b" stroke-width="2" stroke-linejoin="round"/>
+                                <text x="0" y="-85" fill="#9ca3af" font-size="14" font-weight="bold" text-anchor="middle">Bóng đèn: 1000 Ω</text>
+                            </g>
+                        </svg>
+                    </div>
+
+                    <!-- Slider Control -->
+                    <div id="panel-slider" class="mt-4 hidden opacity-0 transition-opacity duration-300 bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-inner">
+                        <div class="flex justify-between text-xs font-bold text-blue-300 mb-2">
+                            <span>0 Ω</span>
+                            <span id="lbl-slider-val" class="text-white bg-blue-900 px-3 py-1 rounded-md border border-blue-700">5000 Ω</span>
+                            <span>20 kΩ</span>
+                        </div>
+                        <input type="range" id="input-slider" min="0" max="20000" step="10" value="5000" class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer" oninput="runPhysicsEngine()">
+                    </div>
+                    
+                    <!-- Stats Panel -->
+                    <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm font-mono bg-slate-950 p-4 rounded-xl border border-slate-800">
+                        <div class="flex flex-col bg-slate-900 p-2 rounded-lg border border-slate-800">
+                            <span class="text-slate-500 text-[10px] mb-1 uppercase">Nguồn (U)</span>
+                            <span class="text-white font-bold">9.0 V</span>
+                        </div>
+                        <div class="flex flex-col bg-slate-900 p-2 rounded-lg border border-slate-800">
+                            <span class="text-slate-500 text-[10px] mb-1 uppercase">Tổng Trở (R_tđ)</span>
+                            <span id="stat-r" class="text-indigo-400 font-bold">11000 Ω</span>
+                        </div>
+                        <div class="flex flex-col bg-slate-900 p-2 rounded-lg border border-slate-800">
+                            <span class="text-slate-500 text-[10px] mb-1 uppercase">Dòng Điện (I)</span>
+                            <span id="stat-i" class="text-emerald-400 font-bold">0.82 mA</span>
+                        </div>
+                        <div class="flex flex-col bg-slate-900 p-2 rounded-lg border border-slate-800">
+                            <span class="text-slate-500 text-[10px] mb-1 uppercase">Điện áp R (U_R)</span>
+                            <span id="stat-u" class="text-rose-400 font-bold">8.18 V</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- BẢNG CHAT AI -->
+        <div id="ai-panel">
+            <div class="p-3 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="bg-indigo-600 text-white w-9 h-9 rounded-full flex justify-center items-center font-bold shadow-sm"><i class="fas fa-brain"></i></div>
+                    <div>
+                        <h3 class="font-bold text-indigo-900 text-sm">Gia Sư AI (Công Nghệ)</h3>
+                        <p class="text-[11px] text-emerald-600 flex items-center gap-1"><i class="fas fa-circle text-[8px]"></i> Lắng nghe thời gian thực</p>
+                    </div>
+                </div>
+                <button id="btn-toggle-voice" class="text-indigo-600 hover:bg-indigo-100 p-2 rounded-full transition-colors"><i class="fas fa-volume-up"></i></button>
+            </div>
+            
+            <div id="chat-history">
+                <div class="chat-msg msg-ai">Chào em! Thầy là Trợ giảng AI đây. <br><br>Hôm nay chúng ta sẽ tìm hiểu về cách đọc vạch màu Điện trở và Định luật Ohm. Em có thể thay đổi các thông số ở bên trái, hoặc kéo thanh biến trở để xem độ sáng bóng đèn thay đổi nhé!<br><br>Nếu có thắc mắc, hãy gõ hoặc bấm nút Micro để hỏi thầy.</div>
+            </div>
+            
+            <div class="p-3 bg-white border-t border-slate-200 flex items-center gap-2">
+                <!-- Nút bật Micro Nhận diện giọng nói -->
+                <button id="btn-mic" class="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors" title="Nhấn để nói (Voice to Text)">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <input type="text" id="chat-input" class="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Hỏi thầy giáo AI..." autocomplete="off">
+                <button id="btn-send" class="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-colors"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- 1. DỮ LIỆU ĐIỆN TRỞ ---
+        const colorsData = {
+            digits: [
+                { name: 'Đen (0)', val: 0, hex: '#111827', text: 'white' },
+                { name: 'Nâu (1)', val: 1, hex: '#8B4513', text: 'white' },
+                { name: 'Đỏ (2)', val: 2, hex: '#EF4444', text: 'white' },
+                { name: 'Cam (3)', val: 3, hex: '#F97316', text: 'black' },
+                { name: 'Vàng (4)', val: 4, hex: '#EAB308', text: 'black' },
+                { name: 'Lục (5)', val: 5, hex: '#22C55E', text: 'black' },
+                { name: 'Lam (6)', val: 6, hex: '#3B82F6', text: 'white' },
+                { name: 'Tím (7)', val: 7, hex: '#A855F7', text: 'white' },
+                { name: 'Xám (8)', val: 8, hex: '#6B7280', text: 'white' },
+                { name: 'Trắng (9)', val: 9, hex: '#F9FAFB', text: 'black' }
+            ],
+            multipliers: [
+                { name: 'Đen (x1)', val: 0, hex: '#111827', mult: 1 },
+                { name: 'Nâu (x10)', val: 1, hex: '#8B4513', mult: 10 },
+                { name: 'Đỏ (x100)', val: 2, hex: '#EF4444', mult: 100 },
+                { name: 'Cam (x1k)', val: 3, hex: '#F97316', mult: 1000 },
+                { name: 'Vàng (x10k)', val: 4, hex: '#EAB308', mult: 10000 },
+                { name: 'Lục (x100k)', val: 5, hex: '#22C55E', mult: 100000 },
+                { name: 'Lam (x1M)', val: 6, hex: '#3B82F6', mult: 1000000 },
+                { name: 'Vàng kim (x0.1)', val: -1, hex: '#FACC15', mult: 0.1 },
+                { name: 'Bạc (x0.01)', val: -2, hex: '#CBD5E1', mult: 0.01 }
+            ],
+            tolerances: [
+                { name: 'Nâu (±1%)', hex: '#8B4513', tol: 1 },
+                { name: 'Đỏ (±2%)', hex: '#EF4444', tol: 2 },
+                { name: 'Lục (±0.5%)', hex: '#22C55E', tol: 0.5 },
+                { name: 'Lam (±0.25%)', hex: '#3B82F6', tol: 0.25 },
+                { name: 'Vàng kim (±5%)', hex: '#FACC15', tol: 5 },
+                { name: 'Bạc (±10%)', hex: '#CBD5E1', tol: 10 }
+            ]
+        };
+
+        const VOLTAGE_BATTERY = 9.0;
+        const RESISTANCE_BULB = 1000;
+        const MAX_CURRENT_MA = (VOLTAGE_BATTERY / RESISTANCE_BULB) * 1000;
+
+        let currentFixedR = 10000;
+        let isVarMode = false;
+        
+        // --- 2. GIAO DIỆN & VẬT LÝ ---
+        function init() {
+            populateDropdown('sel-band1', colorsData.digits, 1); 
+            populateDropdown('sel-band2', colorsData.digits, 0); 
+            populateDropdown('sel-band3', colorsData.multipliers, 2); 
+            populateDropdown('sel-band4', colorsData.tolerances, 4); 
+            calcColorsToValue();
+        }
+
+        function populateDropdown(id, data, defaultIndex) {
+            const select = document.getElementById(id);
+            select.innerHTML = '';
+            data.forEach((item, index) => {
+                let opt = document.createElement('option');
+                opt.value = index;
+                opt.textContent = item.name;
+                opt.style.backgroundColor = item.hex;
+                opt.style.color = item.text;
+                select.appendChild(opt);
+            });
+            select.selectedIndex = defaultIndex;
+        }
+
+        function formatOhm(val) {
+            if (val >= 1000000) return parseFloat((val / 1000000).toFixed(2)) + ' MΩ';
+            if (val >= 1000) return parseFloat((val / 1000).toFixed(2)) + ' kΩ';
+            return parseFloat(val.toFixed(2)) + ' Ω';
+        }
+
+        function setBandColors(b1, b2, b3, b4) {
+            document.getElementById('ui-band1').style.backgroundColor = b1;
+            document.getElementById('ui-band2').style.backgroundColor = b2;
+            document.getElementById('ui-band3').style.backgroundColor = b3;
+            document.getElementById('ui-band4').style.backgroundColor = b4;
+            document.getElementById('svg-band1').setAttribute('fill', b1);
+            document.getElementById('svg-band2').setAttribute('fill', b2);
+            document.getElementById('svg-band3').setAttribute('fill', b3);
+            document.getElementById('svg-band4').setAttribute('fill', b4);
+        }
+
+        function calcColorsToValue() {
+            const v1 = colorsData.digits[document.getElementById('sel-band1').value];
+            const v2 = colorsData.digits[document.getElementById('sel-band2').value];
+            const v3 = colorsData.multipliers[document.getElementById('sel-band3').value];
+            const v4 = colorsData.tolerances[document.getElementById('sel-band4').value];
+
+            setBandColors(v1.hex, v2.hex, v3.hex, v4.hex);
+
+            currentFixedR = ((v1.val * 10) + v2.val) * v3.mult;
+            document.getElementById('display-resistance').textContent = `${formatOhm(currentFixedR)} ±${v4.tol}%`;
+            
+            if (!isVarMode) runPhysicsEngine();
+        }
+
+        function calcValueToColors() {
+            let str = document.getElementById('input-reverse').value.trim().toLowerCase();
+            let err = document.getElementById('error-reverse');
+            let multiplier = 1;
+            if (str.endsWith('k')) { multiplier = 1000; str = str.slice(0, -1); }
+            else if (str.endsWith('m')) { multiplier = 1000000; str = str.slice(0, -1); }
+            
+            let val = parseFloat(str) * multiplier;
+            if (isNaN(val) || val < 0) { err.classList.remove('hidden'); return; }
+            err.classList.add('hidden');
+
+            if (val === 0) {
+                document.getElementById('sel-band1').value = 0; document.getElementById('sel-band2').value = 0; document.getElementById('sel-band3').value = 0;
+                calcColorsToValue(); return;
+            }
+
+            let power = Math.floor(Math.log10(val));
+            let twoDigits = Math.round(val / Math.pow(10, power - 1)); 
+            
+            if (twoDigits >= 100) { twoDigits = Math.round(twoDigits / 10); power += 1; }
+            else if (twoDigits < 10) { twoDigits = twoDigits * 10; power -= 1; }
+
+            let d1 = Math.floor(twoDigits / 10);
+            let d2 = twoDigits % 10;
+            let multPower = power - 1;
+
+            let idx1 = colorsData.digits.findIndex(c => c.val === d1);
+            let idx2 = colorsData.digits.findIndex(c => c.val === d2);
+            let idx3 = colorsData.multipliers.findIndex(c => Math.abs(c.mult - Math.pow(10, multPower)) < 0.00001);
+
+            if (idx1 !== -1 && idx2 !== -1 && idx3 !== -1) {
+                document.getElementById('sel-band1').value = idx1;
+                document.getElementById('sel-band2').value = idx2;
+                document.getElementById('sel-band3').value = idx3;
+                calcColorsToValue();
+            } else { err.classList.remove('hidden'); }
+        }
+
+        function setResistorMode(mode) {
+            isVarMode = (mode === 'variable');
+            const btnFixed = document.getElementById('btn-fixed');
+            const btnVar = document.getElementById('btn-var');
+            const sliderPanel = document.getElementById('panel-slider');
+            const svgFixed = document.getElementById('svg-fixed-resistor');
+            const svgVar = document.getElementById('svg-var-resistor');
+
+            if (isVarMode) {
+                btnVar.className = "text-xs font-bold px-3 py-1.5 rounded bg-blue-600 text-white transition-colors focus:outline-none";
+                btnFixed.className = "text-xs font-bold px-3 py-1.5 rounded text-slate-400 hover:text-white transition-colors focus:outline-none";
+                sliderPanel.classList.remove('hidden'); setTimeout(() => sliderPanel.classList.remove('opacity-0'), 10);
+                svgFixed.classList.add('hidden'); svgVar.classList.remove('hidden');
+            } else {
+                btnFixed.className = "text-xs font-bold px-3 py-1.5 rounded bg-blue-600 text-white transition-colors focus:outline-none";
+                btnVar.className = "text-xs font-bold px-3 py-1.5 rounded text-slate-400 hover:text-white transition-colors focus:outline-none";
+                sliderPanel.classList.add('opacity-0'); setTimeout(() => sliderPanel.classList.add('hidden'), 300);
+                svgFixed.classList.remove('hidden'); svgVar.classList.add('hidden');
+            }
+            runPhysicsEngine();
+        }
+
+        function runPhysicsEngine() {
+            let R = isVarMode ? parseFloat(document.getElementById('input-slider').value) : currentFixedR;
+            let strR = formatOhm(R);
+            
+            if (isVarMode) {
+                document.getElementById('lbl-slider-val').textContent = strR;
+                document.getElementById('txt-var-val').textContent = strR;
+                let angle = -135 + (R / 20000) * 270;
+                document.getElementById('svg-pot-knob').setAttribute('transform', `rotate(${angle}, 60, 15)`);
+            } else { document.getElementById('txt-fixed-val').textContent = strR; }
+
+            let R_total = R + RESISTANCE_BULB;
+            let I_Amps = VOLTAGE_BATTERY / R_total;
+            let I_mA = I_Amps * 1000;
+            let U_R = I_Amps * R;
+
+            document.getElementById('meter-amp').textContent = I_mA.toFixed(2);
+            document.getElementById('meter-volt').textContent = U_R.toFixed(2);
+            document.getElementById('stat-r').textContent = formatOhm(R_total);
+            document.getElementById('stat-i').textContent = I_mA.toFixed(2) + ' mA';
+            document.getElementById('stat-u').textContent = U_R.toFixed(2) + ' V';
+
+            let brightnessRatio = I_mA / MAX_CURRENT_MA; 
+            const glow = document.getElementById('svg-glow'), glass = document.getElementById('svg-glass'), filament = document.getElementById('svg-filament'), electrons = document.getElementById('anim-flow');
+            
+            // Logic tắt hẳn đèn khi biến trở lên mức quá cao (dòng điện nhỏ)
+            let opacityCalc = brightnessRatio * 1.5;
+            if (opacityCalc > 0.08) { 
+                glass.setAttribute('fill', '#fef08a'); glass.setAttribute('stroke', '#eab308');
+                filament.setAttribute('stroke', '#ca8a04'); filament.setAttribute('stroke-width', '3');
+                glow.setAttribute('opacity', Math.min(1.0, opacityCalc).toString());
+                electrons.classList.remove('opacity-0');
+                let animDuration = Math.max(0.3, 4 - (brightnessRatio * 3.7));
+                document.querySelectorAll('.electron-flow').forEach(el => { el.style.animationDuration = animDuration + 's'; });
+            } else {
+                glass.setAttribute('fill', '#e2e8f0'); glass.setAttribute('stroke', '#94a3b8');
+                filament.setAttribute('stroke', '#64748b'); filament.setAttribute('stroke-width', '2');
+                glow.setAttribute('opacity', '0'); electrons.classList.add('opacity-0');
+            }
+        }
+
+        // --- 3. HỆ THỐNG GIA SƯ AI & ÂM THANH ---
+        const apiKey = ""; // API Key của Gemini nếu có
+
+        const chatHistory = document.getElementById('chat-history');
+        const chatInput = document.getElementById('chat-input');
+        const btnSend = document.getElementById('btn-send');
+        let isVoiceEnabled = true;
+
+        document.getElementById('btn-toggle-voice').addEventListener('click', function() {
+            isVoiceEnabled = !isVoiceEnabled;
+            this.innerHTML = isVoiceEnabled ? '<i class="fas fa-volume-up"></i>' : '<i class="fas fa-volume-mute"></i>';
+            this.className = isVoiceEnabled ? 'text-indigo-600 hover:bg-indigo-100 p-2 rounded-full transition-colors' : 'text-slate-500 hover:bg-slate-200 p-2 rounded-full transition-colors';
+            if (!isVoiceEnabled && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+        });
+
+        // Hàm phát giọng nói chuẩn Tiếng Việt
+        function playAIVoice(text) {
+            if (!isVoiceEnabled) return;
+            let tempDiv = document.createElement("div"); tempDiv.innerHTML = text;
+            let cleanText = tempDiv.textContent || tempDiv.innerText || "";
+            cleanText = cleanText.replace(/[*#_]/g, '');
+
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(cleanText);
+                utterance.lang = 'vi-VN';
+                let voices = window.speechSynthesis.getVoices();
+                let voice = voices.find(v => v.lang === 'vi-VN' || v.lang.startsWith('vi'));
+                if (voice) {
+                    utterance.voice = voice; utterance.rate = 1.0; utterance.pitch = 1.1; 
+                    window.speechSynthesis.speak(utterance);
+                    return; 
+                }
+            }
+            // Fallback Google Translate TTS
+            try {
+                const chunk = cleanText.substring(0, 200);
+                const audio = new Audio(`https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=vi&q=${encodeURIComponent(chunk)}`);
+                audio.play();
+            } catch(e) {}
+        }
+
+        // Nhận diện giọng nói (Speech-to-Text)
+        const btnMic = document.getElementById('btn-mic');
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'vi-VN';
+            recognition.interimResults = false;
+            let isRecording = false;
+
+            btnMic.addEventListener('click', () => {
+                if (isRecording) recognition.stop();
+                else recognition.start();
+            });
+
+            recognition.onstart = function() {
+                isRecording = true;
+                btnMic.classList.add('mic-recording');
+                chatInput.placeholder = "Đang nghe...";
+            };
+
+            recognition.onresult = function(event) {
+                chatInput.value = event.results[0][0].transcript;
+                setTimeout(() => btnSend.click(), 500);
+            };
+            recognition.onerror = function() { alert("Lỗi micro: Hãy cấp quyền sử dụng Micro cho trình duyệt."); };
+            recognition.onend = function() {
+                isRecording = false;
+                btnMic.classList.remove('mic-recording');
+                chatInput.placeholder = "Hỏi thầy giáo AI...";
+            };
+        } else { btnMic.style.display = 'none'; }
+
+        function addMsg(text, type) {
+            const div = document.createElement('div');
+            div.className = `chat-msg msg-${type}`;
+            div.innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+            chatHistory.appendChild(div);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        // Tạo Context gửi cho AI
+        function getSimulationContext() {
+            const v1 = colorsData.digits[document.getElementById('sel-band1').value].name;
+            const v2 = colorsData.digits[document.getElementById('sel-band2').value].name;
+            const v3 = colorsData.multipliers[document.getElementById('sel-band3').value].name;
+            const mode = isVarMode ? 'Biến trở' : 'Điện trở cố định 4 vạch';
+            const rValue = isVarMode ? document.getElementById('input-slider').value + ' Ω' : formatOhm(currentFixedR);
+            const I = document.getElementById('stat-i').textContent;
+            const U = document.getElementById('stat-u').textContent;
+            return `Trạng thái mạch: Chế độ ${mode}. Vạch màu: ${v1}, ${v2}, ${v3}. Giá trị R = ${rValue}. Dòng I = ${I}, Áp U_R = ${U}.`;
+        }
+
+        // AI Logic
+        async function processAI(userText) {
+            const context = getSimulationContext();
+            
+            // Xử lý Local nếu không có API Key
+            if (!apiKey) {
+                setTimeout(() => {
+                    let textLower = userText.toLowerCase();
+                    let reply = "Thầy đang theo dõi thông số em thao tác. Áp dụng định luật Ohm I = U / R, nếu R lớn thì dòng I sẽ nhỏ lại, làm đèn tối đi đó em.";
+                    if(textLower.includes("chán") || textLower.includes("khó")) reply = "Đừng nản chí! Điện trở giống như hòn đá cản dòng suối vậy. Em thử kéo thanh biến trở xuống 0 Ôm xem đèn có sáng rực lên không?";
+                    if(textLower.includes("màu")) reply = `Quy tắc đọc màu: (Vạch 1 × 10 + Vạch 2) × Hệ số nhân. Ví dụ Đỏ-Đỏ-Cam là (22) × 1000 = 22kΩ. Hiện tại em đang chọn: ${colorsData.digits[document.getElementById('sel-band1').value].name} và ${colorsData.digits[document.getElementById('sel-band2').value].name}.`;
+                    if(textLower.includes("đèn tối")) reply = `Hiện tại điện trở R = ${isVarMode ? document.getElementById('input-slider').value : currentFixedR} Ôm, dòng điện I chỉ còn ${document.getElementById('stat-i').textContent}. Dòng quá nhỏ nên đèn bị tối em ạ!`;
+                    
+                    addMsg(reply, "ai");
+                    playAIVoice(reply);
+                }, 800);
+                return;
+            }
+
+            // Xử lý Online (Gemini) nếu có API Key
+            const prompt = `Ngữ cảnh mạch điện: ${context}. Học sinh hỏi: "${userText}". Bạn là thầy giáo môn Công nghệ vui tính. Hãy giải thích ngắn gọn (tối đa 4 câu), xưng "thầy", gọi "em". Nếu học sinh chán, hãy kể một ví von hài hước (ví dụ: dòng điện như dòng xe, điện trở như kẹt xe/ổ gà).`;
+            
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                const data = await res.json();
+                const aiText = data.candidates[0].content.parts[0].text;
+                addMsg(aiText, "ai");
+                playAIVoice(aiText);
+            } catch (e) {
+                addMsg("Mạng đang chập chờn, nhưng thầy vẫn ở đây! Nhớ định luật Ohm: I = U/R em nhé.", "ai");
+                playAIVoice("Mạng đang chập chờn, nhưng thầy vẫn ở đây! Nhớ định luật Ohm: I bằng U chia R nhé em.");
+            }
+        }
+
+        btnSend.addEventListener('click', () => {
+            const val = chatInput.value.trim();
+            if (!val) return;
+            addMsg(val, "user");
+            chatInput.value = '';
+            processAI(val);
+        });
+        chatInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') btnSend.click(); });
+
+        window.onload = init;
+    </script>
+</body>
+</html>
